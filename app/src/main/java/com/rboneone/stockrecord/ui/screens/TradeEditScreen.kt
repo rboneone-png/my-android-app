@@ -36,6 +36,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -328,6 +329,8 @@ fun NumberField(
     label: String,
     modifier: Modifier = Modifier,
     supporting: String? = null,
+    /** 需要部分文字上色時使用，優先於 supporting */
+    supportingAnnotated: AnnotatedString? = null,
     /** 有值時顯示「自動」按鈕，讓使用者恢復自動計算 */
     onResetAuto: (() -> Unit)? = null,
 ) {
@@ -337,7 +340,7 @@ fun NumberField(
         label = { Text(label) },
         singleLine = true,
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-        supportingText = supporting?.let { { Text(it) } },
+        supportingText = supportingAnnotated?.let { { Text(it) } } ?: supporting?.let { { Text(it) } },
         trailingIcon = onResetAuto?.let { reset ->
             { TextButton(onClick = reset) { Text("自動") } }
         },

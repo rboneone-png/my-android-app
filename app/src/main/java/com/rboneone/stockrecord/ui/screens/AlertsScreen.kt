@@ -34,6 +34,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.rboneone.stockrecord.ui.theme.riseFallColored
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
@@ -139,7 +140,7 @@ private fun AlertCard(alert: PriceAlert, quote: Quote?, onClick: () -> Unit, onT
                     style = MaterialTheme.typography.titleMedium,
                 )
                 Text(
-                    "${alert.market.label}・${alert.conditionText()}",
+                    riseFallColored("${alert.market.label}・${alert.conditionText()}"),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.primary,
                 )

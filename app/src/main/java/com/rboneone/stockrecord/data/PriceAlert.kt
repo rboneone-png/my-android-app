@@ -6,12 +6,12 @@ import kotlin.math.abs
 
 /** 通知條件：漲跌類以「今天相對昨日收盤」計算；股價類直接比較現價 */
 enum class AlertType(val label: String, val isPercent: Boolean) {
-    RISE_AMOUNT("股價漲幅大於等於設定值", false),
-    FALL_AMOUNT("股價跌幅大於等於設定值", false),
-    RISE_PCT("股價漲幅比率大於等於設定值", true),
-    FALL_PCT("股價跌幅比率大於等於設定值", true),
-    PRICE_ABOVE("股價高於等於設定值", false),
-    PRICE_BELOW("股價低於等於設定值", false),
+    RISE_AMOUNT("股價上漲達到設定金額", false),
+    FALL_AMOUNT("股價下跌達到設定金額", false),
+    RISE_PCT("股價上漲達到設定比例", true),
+    FALL_PCT("股價下跌達到設定比例", true),
+    PRICE_ABOVE("股價上漲至設定價", false),
+    PRICE_BELOW("股價下跌至設定價", false),
 }
 
 @Entity(tableName = "price_alerts")
@@ -51,18 +51,18 @@ data class PriceAlert(
         }
     }
 
-    /** 例如「漲幅 ≥ 50 元」、「跌幅比率 ≥ 3%」 */
+    /** 例如「上漲達 50 元」、「下跌達 3%」、「上漲至 2500 元」 */
     fun conditionText(): String {
         val t = abs(threshold)
         val unit = if (market == Market.TW) "元" else "美元"
         val v = if (t % 1.0 == 0.0) "%.0f".format(t) else "%.2f".format(t)
         return when (type) {
-            AlertType.RISE_AMOUNT -> "漲幅 ≥ $v $unit"
-            AlertType.FALL_AMOUNT -> "跌幅 ≥ $v $unit"
-            AlertType.RISE_PCT -> "漲幅比率 ≥ $v%"
-            AlertType.FALL_PCT -> "跌幅比率 ≥ $v%"
-            AlertType.PRICE_ABOVE -> "股價 ≥ $v $unit"
-            AlertType.PRICE_BELOW -> "股價 ≤ $v $unit"
+            AlertType.RISE_AMOUNT -> "上漲達 $v $unit"
+            AlertType.FALL_AMOUNT -> "下跌達 $v $unit"
+            AlertType.RISE_PCT -> "上漲達 $v%"
+            AlertType.FALL_PCT -> "下跌達 $v%"
+            AlertType.PRICE_ABOVE -> "上漲至 $v $unit"
+            AlertType.PRICE_BELOW -> "下跌至 $v $unit"
         }
     }
 }

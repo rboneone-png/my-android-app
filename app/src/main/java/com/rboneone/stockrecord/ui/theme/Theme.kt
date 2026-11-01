@@ -10,6 +10,10 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
 
 // 台灣習慣：紅色代表漲 / 獲利 / 買進，綠色代表跌 / 虧損 / 賣出
 val ProfitRed = Color(0xFFD32F2F)
@@ -19,6 +23,15 @@ fun pnlColor(value: Double): Color = when {
     value > 0.0001 -> ProfitRed
     value < -0.0001 -> LossGreen
     else -> Color.Unspecified
+}
+
+/** 文字中的「上漲」標紅色、「下跌」標綠色，其餘維持原本顏色 */
+fun riseFallColored(text: String): AnnotatedString = buildAnnotatedString {
+    append(text)
+    Regex("上漲|下跌").findAll(text).forEach { m ->
+        val color = if (m.value == "上漲") ProfitRed else LossGreen
+        addStyle(SpanStyle(color = color, fontWeight = FontWeight.Bold), m.range.first, m.range.last + 1)
+    }
 }
 
 @Composable

@@ -79,12 +79,12 @@ class PriceAlertTest {
 
     @Test
     fun conditionText() {
-        assertEquals("漲幅 ≥ 50 元", alert(AlertType.RISE_AMOUNT, 50.0).conditionText())
-        assertEquals("跌幅 ≥ 2.50 美元", alert(AlertType.FALL_AMOUNT, 2.5, Market.US).conditionText())
-        assertEquals("漲幅比率 ≥ 3%", alert(AlertType.RISE_PCT, 3.0).conditionText())
-        assertEquals("跌幅比率 ≥ 3%", alert(AlertType.FALL_PCT, -3.0).conditionText())
-        assertEquals("股價 ≥ 2500 元", alert(AlertType.PRICE_ABOVE, 2500.0).conditionText())
-        assertEquals("股價 ≤ 180.50 美元", alert(AlertType.PRICE_BELOW, 180.5, Market.US).conditionText())
+        assertEquals("上漲達 50 元", alert(AlertType.RISE_AMOUNT, 50.0).conditionText())
+        assertEquals("下跌達 2.50 美元", alert(AlertType.FALL_AMOUNT, 2.5, Market.US).conditionText())
+        assertEquals("上漲達 3%", alert(AlertType.RISE_PCT, 3.0).conditionText())
+        assertEquals("下跌達 3%", alert(AlertType.FALL_PCT, -3.0).conditionText())
+        assertEquals("上漲至 2500 元", alert(AlertType.PRICE_ABOVE, 2500.0).conditionText())
+        assertEquals("下跌至 180.50 美元", alert(AlertType.PRICE_BELOW, 180.5, Market.US).conditionText())
     }
 
     @Test

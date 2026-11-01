@@ -35,6 +35,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.input.OffsetMapping
+import androidx.compose.ui.text.input.TransformedText
+import com.rboneone.stockrecord.ui.theme.riseFallColored
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import com.rboneone.stockrecord.data.AlertType
@@ -156,6 +159,8 @@ fun AlertEditScreen(vm: AppViewModel, alertId: Long, onDone: () -> Unit) {
                     value = type.label,
                     onValueChange = {},
                     readOnly = true,
+                    // 「上漲」紅色、「下跌」綠色
+                    visualTransformation = { TransformedText(riseFallColored(it.text), OffsetMapping.Identity) },
                     label = { Text("通知條件") },
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
                     modifier = Modifier.fillMaxWidth().menuAnchor(MenuAnchorType.PrimaryNotEditable),
@@ -163,7 +168,7 @@ fun AlertEditScreen(vm: AppViewModel, alertId: Long, onDone: () -> Unit) {
                 ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
                     AlertType.entries.forEach { t ->
                         DropdownMenuItem(
-                            text = { Text(t.label) },
+                            text = { Text(riseFallColored(t.label)) },
                             onClick = { type = t; expanded = false },
                             contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding,
                         )
@@ -174,7 +179,7 @@ fun AlertEditScreen(vm: AppViewModel, alertId: Long, onDone: () -> Unit) {
             NumberField(
                 thresholdText, { thresholdText = it; error = null },
                 if (type == AlertType.PRICE_ABOVE || type == AlertType.PRICE_BELOW) "股價（$unit）" else "設定值（$unit）",
-                supporting = conditionHint(type, unit, thresholdText.toAmountOrNull()?.let { abs(it) }),
+                supportingAnnotated = riseFallColored(conditionHint(type, unit, thresholdText.toAmountOrNull()?.let { abs(it) })),
                 modifier = Modifier.fillMaxWidth(),
             )
             error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
@@ -202,11 +207,11 @@ fun AlertEditScreen(vm: AppViewModel, alertId: Long, onDone: () -> Unit) {
 private fun conditionHint(type: AlertType, unit: String, value: Double?): String {
     val v = value?.let { plainNumber(it) } ?: "X"
     return when (type) {
-        AlertType.RISE_AMOUNT -> "今天上漲 $v $unit（含）以上時通知"
-        AlertType.FALL_AMOUNT -> "今天下跌 $v $unit（含）以上時通知"
-        AlertType.RISE_PCT -> "今天漲幅達 $v%（含）以上時通知"
-        AlertType.FALL_PCT -> "今天跌幅達 $v%（含）以上時通知"
-        AlertType.PRICE_ABOVE -> "股價漲到 $v $unit（含）以上時通知"
-        AlertType.PRICE_BELOW -> "股價跌到 $v $unit（含）以下時通知"
+        AlertType.RISE_AMOUNT -> "今天股價上漲達到 $v $unit（含）以上時通知"
+        AlertType.FALL_AMOUNT -> "今天股價下跌達到 $v $unit（含）以上時通知"
+        AlertType.RISE_PCT -> "今天股價上漲達到 $v%（含）以上時通知"
+        AlertType.FALL_PCT -> "今天股價下跌達到 $v%（含）以上時通知"
+        AlertType.PRICE_ABOVE -> "股價上漲至 $v $unit（含）以上時通知"
+        AlertType.PRICE_BELOW -> "股價下跌至 $v $unit（含）以下時通知"
     }
 }
