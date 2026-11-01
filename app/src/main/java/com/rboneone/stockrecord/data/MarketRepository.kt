@@ -1,6 +1,7 @@
 package com.rboneone.stockrecord.data
 
 import com.rboneone.stockrecord.domain.Bar
+import com.rboneone.stockrecord.domain.PeriodHigh
 import com.rboneone.stockrecord.network.YahooApi
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
@@ -92,6 +93,18 @@ class MarketRepository(private val dao: MarketDao) {
         val bars = YahooApi.history(info.yahooSymbol, from, to) ?: return null
         if (cacheable) synchronized(historyCache) { historyCache[key] = bars }
         return bars
+    }
+
+    /** 近 years 年的最高價；查不到或連不上回傳 null */
+    suspend fun periodHigh(market: Market, symbol: String, years: Int): PeriodHigh? {
+        val info = (lookup(market, symbol) as? LookupResult.Found)?.info ?: return null
+        return try {
+            YahooApi.periodHigh(info.yahooSymbol, years)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            null
+        }
     }
 
     private suspend fun refreshFx(): Boolean {

@@ -1,4 +1,4 @@
-# 股票記帳 — 架構說明（1.0.0）
+# 股票記帳 — 架構說明（1.1.0）
 
 ## 總覽
 
@@ -41,7 +41,7 @@ app/src/main/java/com/rboneone/stockrecord/
 
 ## 資料儲存
 
-每個帳號一個獨立的 SQLite 資料庫 `stock_<帳號ID>.db`（Room，版本 7）與一份設定檔 `settings_<帳號ID>`。
+每個帳號一個獨立的 SQLite 資料庫 `stock_<帳號ID>.db`（Room，版本 8）與一份設定檔 `settings_<帳號ID>`。
 
 | 資料表 | 內容 |
 |---|---|
@@ -51,14 +51,15 @@ app/src/main/java/com/rboneone/stockrecord/
 | `price_alerts` | 股價通知條件與上次通知的交易日 |
 | `pledges` | 質押：股數、金額、利率、日期 |
 | `watchlist` | 觀察股票與排列順序 |
+| `high_watch` | 「股票漲跌」清單、排列順序與近 2 年最高價快取 |
 | `quotes` | 報價快取（含美元匯率 `TWD=X`），離線時顯示 |
 | `stock_info` | 股票名稱與 Yahoo 代號快取 |
 
 設定檔（SharedPreferences）：手續費設定、股價刷新秒數、現金金額、庫存股排序、質押「包含正二」、同步設定、上次質押通知日。
 帳號清單另存於 `accounts`（只存加鹽雜湊後的密碼）。
 
-舊版資料庫升級（v1→v7）的 Migration 保留在 `AppDatabase.kt`，讓任何舊版本都能直接覆蓋安裝；
-`app/schemas/.../7.json` 是 Room 匯出的最終資料表結構。
+舊版資料庫升級（v1→v8）的 Migration 保留在 `AppDatabase.kt`，讓任何舊版本都能直接覆蓋安裝；
+`app/schemas/.../8.json` 是 Room 匯出的最終資料表結構。
 
 ## 主要計算（domain/）
 
@@ -68,7 +69,8 @@ app/src/main/java/com/rboneone/stockrecord/
 | `Portfolio` | 平均成本法：持股、成本、已實現損益、股息、每筆賣出的已實現損益 |
 | `Valuation` | 加上報價：市值、未實現損益（預扣賣出費用）、總損益、日損益、市場彙總、自訂排序 |
 | `Allocation` | 資產配置：A 原型 + B 正二 + C 類現金 + D 現金 + E 其他；曝險 = A + 2B |
-| `PledgeCalculator` | 利息支出、個股與整體維持率、三色等級、可質押市值 |
+| `PledgeCalculator` | 利息支出、個股／月份／整體維持率、三色等級、可質押市值、依月份分組 |
+| `HighWatch` | 股票漲跌：顯示用最高價（盤中創新高取現價）、漲跌幅 = 現價 ÷ 最高價 |
 | `DailyReturns` | 月報酬月曆的每日損益與報酬率（週／月以連乘） |
 | `MonthlyIncome` | 每月已實現損益與股利（圖表、Excel） |
 

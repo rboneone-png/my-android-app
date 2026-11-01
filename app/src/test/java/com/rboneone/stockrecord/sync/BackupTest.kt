@@ -3,6 +3,7 @@ package com.rboneone.stockrecord.sync
 import com.rboneone.stockrecord.data.AlertType
 import com.rboneone.stockrecord.data.AssetCategory
 import com.rboneone.stockrecord.data.Dividend
+import com.rboneone.stockrecord.data.HighWatchItem
 import com.rboneone.stockrecord.data.Market
 import com.rboneone.stockrecord.data.Pledge
 import com.rboneone.stockrecord.data.PriceAlert
@@ -39,6 +40,7 @@ class BackupTest {
             pledges = listOf(Pledge(11, "2330", "台積電", 1000.0, 1_000_000.0, 2.5, 20_000, "備註")),
             holdingOrder = mapOf(Market.TW to listOf("2884", "2330"), Market.US to listOf("VOO")),
             watchlist = listOf(WatchItem(3, Market.TW, "2454", "聯發科", 0), WatchItem(4, Market.US, "NVDA", "NVIDIA", 1)),
+            highWatch = listOf(HighWatchItem(5, Market.TW, "0050", "元大台灣50", 0), HighWatchItem(6, Market.US, "QQQ", "Invesco QQQ", 1)),
         )
         assertEquals(data, Backup.parse(Backup.serialize(data)))
     }
@@ -49,5 +51,13 @@ class BackupTest {
         val data = Backup.parse(json)
         assertEquals(emptyList<StockCategory>(), data.categories)
         assertEquals(0.0, data.cash, 0.0)
+        assertEquals(emptyList<HighWatchItem>(), data.highWatch)
+    }
+
+    @Test
+    fun highWatchBackup_dropsCachedHigh() {
+        val item = HighWatchItem(1, Market.TW, "0050", "元大台灣50", 0, highPrice = 80.0, highDate = 20_000, highUpdatedAt = 5)
+        val restored = Backup.parse(Backup.serialize(BackupData(0, emptyList(), emptyList(), FeeSettings(), highWatch = listOf(item))))
+        assertEquals(item.copy(highPrice = null, highDate = null, highUpdatedAt = 0), restored.highWatch.single())
     }
 }

@@ -105,3 +105,36 @@ class YahooHistoryTest {
         org.junit.Assert.assertEquals(2370.0, YahooApi.parseHistory(json)!!.single().close, 0.0)
     }
 }
+
+class YahooHighTest {
+    @Test
+    fun parseHigh_picksHighestDailyHighAndSkipsHolidays() {
+        val json = """
+            {"chart":{"result":[{"meta":{"gmtoffset":28800,"regularMarketDayHigh":2380.0,"regularMarketTime":1793341808},
+            "timestamp":[1792716000,1792802400,1792888800,1793235600],
+            "indicators":{"quote":[{"high":[2430.0,2450.0,2999.0,null],"volume":[100,200,0,300]}]}}]}}
+        """.trimIndent()
+        val high = YahooApi.parseHigh(json)!!
+        org.junit.Assert.assertEquals(2450.0, high.price, 0.0)
+        org.junit.Assert.assertEquals(
+            java.time.LocalDate.ofEpochDay(Math.floorDiv(1792802400L + 28800, 86_400L)).toEpochDay(), high.date,
+        )
+    }
+
+    @Test
+    fun parseHigh_usesTodayHighWhenHigher() {
+        val json = """
+            {"chart":{"result":[{"meta":{"gmtoffset":28800,"regularMarketDayHigh":2500.0,"regularMarketTime":1793341808},
+            "timestamp":[1793235600],
+            "indicators":{"quote":[{"high":[2450.0],"volume":[100]}]}}]}}
+        """.trimIndent()
+        val high = YahooApi.parseHigh(json)!!
+        org.junit.Assert.assertEquals(2500.0, high.price, 0.0)
+        org.junit.Assert.assertEquals(java.time.LocalDate.of(2026, 10, 30).toEpochDay(), high.date)
+    }
+
+    @Test
+    fun parseHigh_unknownSymbol() {
+        org.junit.Assert.assertNull(YahooApi.parseHigh("""{"chart":{"result":null,"error":{"code":"Not Found"}}}"""))
+    }
+}

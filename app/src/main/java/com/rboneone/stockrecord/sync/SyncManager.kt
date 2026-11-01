@@ -37,6 +37,7 @@ class SyncManager(private val app: StockApp) {
             pledges = db.pledgeDao().getAll(),
             holdingOrder = app.settings(userId).holdingOrder.value,
             watchlist = db.watchDao().getAll(),
+            highWatch = db.highWatchDao().getAll(),
         )
     }
 
@@ -95,6 +96,8 @@ class SyncManager(private val app: StockApp) {
             db.pledgeDao().insertAll(data.pledges)
             db.watchDao().deleteAll()
             db.watchDao().insertAll(data.watchlist)
+            db.highWatchDao().deleteAll()
+            db.highWatchDao().insertAll(data.highWatch)
         }
         app.settings(userId).update(data.fees)
         app.settings(userId).setCash(data.cash)

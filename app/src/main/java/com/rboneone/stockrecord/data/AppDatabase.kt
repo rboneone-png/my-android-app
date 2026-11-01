@@ -6,8 +6,8 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
-    entities = [Trade::class, StockInfo::class, Quote::class, Dividend::class, StockCategory::class, PriceAlert::class, Pledge::class, WatchItem::class],
-    version = 7,
+    entities = [Trade::class, StockInfo::class, Quote::class, Dividend::class, StockCategory::class, PriceAlert::class, Pledge::class, WatchItem::class, HighWatchItem::class],
+    version = 8,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -18,6 +18,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun alertDao(): AlertDao
     abstract fun pledgeDao(): PledgeDao
     abstract fun watchDao(): WatchDao
+    abstract fun highWatchDao(): HighWatchDao
 
     companion object {
         /** v1 → v2：新增股票資料與報價表，保留原有交易紀錄 */
@@ -86,6 +87,18 @@ abstract class AppDatabase : RoomDatabase() {
                 db.execSQL(
                     "CREATE TABLE IF NOT EXISTS `watchlist` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
                         "`market` TEXT NOT NULL, `symbol` TEXT NOT NULL, `name` TEXT NOT NULL, `position` INTEGER NOT NULL)"
+                )
+            }
+        }
+
+        /** v7 → v8：新增「股票漲跌」（現價與期間最高價比較）表 */
+        val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `high_watch` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "`market` TEXT NOT NULL, `symbol` TEXT NOT NULL, `name` TEXT NOT NULL, " +
+                        "`position` INTEGER NOT NULL, `highPrice` REAL, " +
+                        "`highDate` INTEGER, `highUpdatedAt` INTEGER NOT NULL)"
                 )
             }
         }

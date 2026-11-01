@@ -85,4 +85,27 @@ class PledgeCalculatorTest {
             PledgeCalculator.build(pledges, quotes, portfolio, categories, false).ratio,
         )
     }
+
+    @Test
+    fun months_groupedNewestFirst() {
+        fun day(y: Int, m: Int, d: Int) = java.time.LocalDate.of(y, m, d).toEpochDay()
+        val list = listOf(
+            Pledge(1, "2330", "台積電", 1000.0, 1_000_000.0, 2.5, day(2026, 9, 5)),
+            Pledge(2, "0050", "元大台灣50", 10_000.0, 300_000.0, 2.0, day(2026, 10, 3)),
+            Pledge(3, "2330", "台積電", 500.0, 500_000.0, 2.5, day(2026, 10, 20)),
+        )
+        val months = PledgeCalculator.build(list, quotes, portfolio = null).months
+        assertEquals(listOf(java.time.YearMonth.of(2026, 10), java.time.YearMonth.of(2026, 9)), months.map { it.month })
+        assertEquals(listOf(3L, 2L), months[0].items.map { it.pledge.id })
+        assertEquals(800_000.0, months[0].totalAmount, 1e-9)
+        // 10 月：500 × 2400 + 10000 × 100 = 2,200,000 ÷ 800,000 = 275%
+        assertEquals(275.0, months[0].ratio!!, 1e-9)
+        assertEquals(240.0, months[1].ratio!!, 1e-9)
+    }
+
+    @Test
+    fun monthRatio_nullWhenQuoteMissing() {
+        val list = listOf(Pledge(1, "9999", "未知", 1000.0, 100_000.0, 2.0, 0))
+        assertNull(PledgeCalculator.build(list, quotes, portfolio = null).months.single().ratio)
+    }
 }

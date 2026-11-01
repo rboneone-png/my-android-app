@@ -16,6 +16,7 @@ import com.rboneone.stockrecord.data.StockCategory
 import com.rboneone.stockrecord.data.SyncConfig
 import com.rboneone.stockrecord.data.Trade
 import com.rboneone.stockrecord.data.WatchItem
+import com.rboneone.stockrecord.data.HighWatchItem
 import com.rboneone.stockrecord.domain.Allocation
 import com.rboneone.stockrecord.domain.AllocationView
 import com.rboneone.stockrecord.domain.DailyReturns
@@ -35,6 +36,7 @@ import com.rboneone.stockrecord.domain.Valuation
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -70,6 +72,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val alertDao = db.alertDao()
     private val pledgeDao = db.pledgeDao()
     private val watchDao = db.watchDao()
+    private val highWatchDao = db.highWatchDao()
     private val settingsRepository = app.settings(userId)
     private val marketRepository = app.marketRepository(userId)
 
@@ -163,7 +166,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 // 通知清單裡的股票不一定有持有，也一起更新
                 val alertStocks = alertDao.getEnabled().map { it.market to it.symbol }
                 val pledgeStocks = pledgeDao.getAll().map { Market.TW to it.symbol }
-                val watchStocks = watchDao.getAll().map { it.market to it.symbol }
+                val watchStocks = watchDao.getAll().map { it.market to it.symbol } +
+                    highWatchDao.getAll().map { it.market to it.symbol }
                 val result = marketRepository.refreshQuotes((open + alertStocks + pledgeStocks + watchStocks).distinct())
                 lastRefresh = System.currentTimeMillis()
                 app.alertChecker.check(userId, refresh = false)
@@ -318,6 +322,66 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun reorderWatch(ids: List<Long>) {
         viewModelScope.launch { watchDao.reorder(ids) }
+    }
+
+    // ---- 股票漲跌（現價與近 2 年最高價） ----
+
+    val highWatch: StateFlow<List<HighWatchItem>> = highWatchDao.observeAll()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    private var highJob: Job? = null
+
+    /**
+     * 抓近 2 年最高價。最高價一天抓一次就夠（盤中創新高由現價補上）；force = true 時全部重抓。
+     */
+    fun refreshHighs(force: Boolean = false) {
+        if (highJob?.isActive == true) return
+        highJob = viewModelScope.launch {
+            val today = LocalDate.now()
+            val zone = java.time.ZoneId.systemDefault()
+            val stale = highWatchDao.getAll().filter {
+                force || it.highPrice == null ||
+                    java.time.Instant.ofEpochMilli(it.highUpdatedAt).atZone(zone).toLocalDate() != today
+            }
+            val failed = coroutineScope {
+                stale.map { item ->
+                    async {
+                        val high = marketRepository.periodHigh(item.market, item.symbol, HighWatchItem.PERIOD_YEARS)
+                        if (high != null) highWatchDao.updateHigh(item.id, high.price, high.date, System.currentTimeMillis())
+                        item.takeIf { high == null }
+                    }
+                }.awaitAll().filterNotNull()
+            }
+            if (force && failed.isNotEmpty()) {
+                _message.value = "最高價更新失敗：${failed.joinToString("、") { it.symbol }}"
+            }
+        }
+    }
+
+    /** 回傳 false 表示已經在清單中 */
+    suspend fun addHighWatch(market: Market, symbol: String, name: String): Boolean {
+        if (highWatchDao.count(market, symbol) > 0) return false
+        val id = highWatchDao.insert(
+            HighWatchItem(
+                market = market, symbol = symbol, name = name,
+                position = highWatchDao.maxPosition() + 1,
+            )
+        )
+        viewModelScope.launch {
+            marketRepository.refreshQuotes(listOf(market to symbol))
+            marketRepository.periodHigh(market, symbol, HighWatchItem.PERIOD_YEARS)?.let {
+                highWatchDao.updateHigh(id, it.price, it.date, System.currentTimeMillis())
+            }
+        }
+        return true
+    }
+
+    fun removeHighWatch(item: HighWatchItem) {
+        viewModelScope.launch { highWatchDao.delete(item) }
+    }
+
+    fun reorderHighWatch(ids: List<Long>) {
+        viewModelScope.launch { highWatchDao.reorder(ids) }
     }
 
     // ---- 圖表與匯出 ----

@@ -17,7 +17,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExtendedFloatingActionButton
@@ -28,6 +30,9 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -38,6 +43,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.rboneone.stockrecord.data.Market
 import com.rboneone.stockrecord.domain.PledgeCalculator
 import com.rboneone.stockrecord.domain.PledgeItem
+import com.rboneone.stockrecord.domain.PledgeMonth
 import com.rboneone.stockrecord.domain.PledgeView
 import com.rboneone.stockrecord.ui.AppViewModel
 import com.rboneone.stockrecord.ui.formatAmount
@@ -54,6 +60,8 @@ private fun ratioText(r: Double?) = r?.let { "%.1f%%".format(it) } ?: "--"
 fun PledgeScreen(vm: AppViewModel, onEdit: (Long) -> Unit) {
     val view by vm.pledgeView.collectAsStateWithLifecycle()
     val includeLeveraged by vm.pledgeIncludeLeveraged.collectAsStateWithLifecycle()
+    // 收合的月份（yyyy-MM），預設全部展開
+    var collapsed by rememberSaveable { mutableStateOf(setOf<String>()) }
 
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
@@ -84,9 +92,20 @@ fun PledgeScreen(vm: AppViewModel, onEdit: (Long) -> Unit) {
                 if (v.items.isEmpty()) {
                     item(key = "empty") { EmptyHint("還沒有質押紀錄\n按右下角「新增質押」") }
                 }
-                items(v.items, key = { it.pledge.id }) {
-                    PledgeRow(it, onClick = { onEdit(it.pledge.id) })
-                    HorizontalDivider()
+                v.months.forEach { group ->
+                    val key = group.month.toString()
+                    val expanded = key !in collapsed
+                    item(key = "month-$key") {
+                        MonthHeader(group, expanded) {
+                            collapsed = if (expanded) collapsed + key else collapsed - key
+                        }
+                    }
+                    if (expanded) {
+                        items(group.items, key = { it.pledge.id }) {
+                            PledgeRow(it, onClick = { onEdit(it.pledge.id) })
+                            HorizontalDivider()
+                        }
+                    }
                 }
                 item(key = "note") {
                     Text(
@@ -201,6 +220,48 @@ private fun TableHeader() {
         Text("維持率", Modifier.weight(W_RATIO), style = style, color = color, textAlign = TextAlign.End)
     }
     HorizontalDivider()
+}
+
+@Composable
+private fun MonthHeader(group: PledgeMonth, expanded: Boolean, onToggle: () -> Unit) {
+    val ratio = group.ratio
+    Column {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .background(MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f))
+                .clickable(onClickLabel = if (expanded) "收合" else "展開", onClick = onToggle)
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                if (expanded) Icons.Filled.KeyboardArrowDown else Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = null,
+            )
+            Column(Modifier.weight(1f).padding(start = 4.dp)) {
+                Text(
+                    "${group.month.year} 年 ${group.month.monthValue} 月",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                )
+                Text(
+                    "${group.items.size} 筆・利息 ${twd(group.totalInterest)}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Column(horizontalAlignment = Alignment.End) {
+                Text(twd(group.totalAmount), style = MaterialTheme.typography.titleSmall)
+                Text(
+                    "維持率 ${ratioText(ratio)}",
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.Bold,
+                    color = pledgeColor(ratio),
+                )
+            }
+        }
+        HorizontalDivider()
+    }
 }
 
 @Composable

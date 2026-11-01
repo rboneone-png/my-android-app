@@ -25,6 +25,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -33,6 +35,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -59,16 +62,14 @@ import kotlinx.coroutines.launch
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
 
+private enum class WatchTab(val label: String) { STOCKS("觀察股票"), HIGH("股票漲跌") }
+
 @Composable
 fun WatchlistScreen(vm: AppViewModel) {
-    val watchlist by vm.watchlist.collectAsStateWithLifecycle()
-    val quotes by vm.quotes.collectAsStateWithLifecycle()
     val refreshing by vm.refreshing.collectAsStateWithLifecycle()
     val refreshSeconds by vm.refreshSeconds.collectAsStateWithLifecycle()
     val lifecycle = LocalLifecycleOwner.current.lifecycle
-    val haptic = LocalHapticFeedback.current
-    var adding by remember { mutableStateOf(false) }
-    var removing by remember { mutableStateOf<WatchItem?>(null) }
+    var tab by rememberSaveable { mutableStateOf(WatchTab.STOCKS) }
 
     // 畫面顯示時依設定秒數自動更新報價
     LaunchedEffect(refreshSeconds) {
@@ -80,6 +81,43 @@ fun WatchlistScreen(vm: AppViewModel) {
             }
         }
     }
+
+    Column(Modifier.fillMaxSize()) {
+        ScreenTopBar(
+            "觀察",
+            actions = {
+                IconButton(
+                    onClick = {
+                        vm.refreshQuotes()
+                        if (tab == WatchTab.HIGH) vm.refreshHighs(force = true)
+                    },
+                    enabled = !refreshing,
+                ) {
+                    Icon(Icons.Filled.Refresh, contentDescription = "更新股價")
+                }
+            },
+        )
+        TabRow(selectedTabIndex = tab.ordinal) {
+            WatchTab.entries.forEach { t ->
+                Tab(selected = tab == t, onClick = { tab = t }, text = { Text(t.label) })
+            }
+        }
+        Box(Modifier.weight(1f)) {
+            when (tab) {
+                WatchTab.STOCKS -> WatchStocksTab(vm, refreshSeconds)
+                WatchTab.HIGH -> HighWatchTab(vm, refreshSeconds)
+            }
+        }
+    }
+}
+
+@Composable
+private fun WatchStocksTab(vm: AppViewModel, refreshSeconds: Int) {
+    val watchlist by vm.watchlist.collectAsStateWithLifecycle()
+    val quotes by vm.quotes.collectAsStateWithLifecycle()
+    val haptic = LocalHapticFeedback.current
+    var adding by remember { mutableStateOf(false) }
+    var removing by remember { mutableStateOf<WatchItem?>(null) }
 
     // 拖曳中先改畫面上的順序，放開後才寫回資料庫
     var order by remember(watchlist) { mutableStateOf(watchlist) }
@@ -94,14 +132,6 @@ fun WatchlistScreen(vm: AppViewModel) {
 
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
-            ScreenTopBar(
-                "觀察股票",
-                actions = {
-                    IconButton(onClick = { vm.refreshQuotes() }, enabled = !refreshing) {
-                        Icon(Icons.Filled.Refresh, contentDescription = "更新股價")
-                    }
-                },
-            )
             if (order.isEmpty()) {
                 EmptyHint("還沒有觀察的股票\n按右下角「新增觀察」")
                 return@Column

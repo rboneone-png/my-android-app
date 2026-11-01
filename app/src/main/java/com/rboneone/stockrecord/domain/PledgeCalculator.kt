@@ -4,6 +4,8 @@ import com.rboneone.stockrecord.data.AssetCategory
 import com.rboneone.stockrecord.data.Market
 import com.rboneone.stockrecord.data.Pledge
 import com.rboneone.stockrecord.data.Quote
+import java.time.LocalDate
+import java.time.YearMonth
 
 /** 維持率的警示等級 */
 enum class PledgeLevel { SAFE, WARNING, DANGER }
@@ -19,11 +21,30 @@ data class PledgeItem(
     val ratio: Double? get() = marketValue?.takeIf { pledge.amount > 0 }?.let { it / pledge.amount * 100 }
 }
 
+/** 同一個質押月份的質押 */
+data class PledgeMonth(val month: YearMonth, val items: List<PledgeItem>) {
+    val totalMarketValue: Double get() = items.sumOf { it.marketValue ?: 0.0 }
+    val totalAmount: Double get() = items.sumOf { it.pledge.amount }
+    val totalInterest: Double get() = items.sumOf { it.pledge.interest }
+    val missingQuotes: Int get() = items.count { it.price == null }
+
+    /** 該月份的維持率 = 該月質押市值 ÷ 該月質押金額 × 100% */
+    val ratio: Double?
+        get() = if (totalAmount > 0 && missingQuotes == 0) totalMarketValue / totalAmount * 100 else null
+}
+
 data class PledgeView(
     /** 可質押股票總市值：目前所有台股持股的市值 */
     val pledgeableValue: Double,
     val items: List<PledgeItem>,
 ) {
+    /** 依質押日期的月份分組，新的月份在前；同月份內日期新的在前 */
+    val months: List<PledgeMonth>
+        get() = items
+            .groupBy { YearMonth.from(LocalDate.ofEpochDay(it.pledge.date)) }
+            .map { (month, list) -> PledgeMonth(month, list.sortedWith(compareByDescending<PledgeItem> { it.pledge.date }.thenByDescending { it.pledge.id })) }
+            .sortedByDescending { it.month }
+
     val totalMarketValue: Double get() = items.sumOf { it.marketValue ?: 0.0 }
     val totalAmount: Double get() = items.sumOf { it.pledge.amount }
     val totalInterest: Double get() = items.sumOf { it.pledge.interest }

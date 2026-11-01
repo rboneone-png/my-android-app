@@ -2,6 +2,7 @@ package com.rboneone.stockrecord.network
 
 import com.rboneone.stockrecord.data.Market
 import com.rboneone.stockrecord.domain.Bar
+import com.rboneone.stockrecord.domain.PeriodHigh
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -40,6 +41,12 @@ object YahooApi {
         val url = CHART_URL + URLEncoder.encode(yahooSymbol, "UTF-8") +
             "?period1=$period1&period2=$period2&interval=1d"
         Http.get(url)?.let { parseHistory(it) }
+    }
+
+    /** 近 years 年的最高價（日線最高價） */
+    suspend fun periodHigh(yahooSymbol: String, years: Int): PeriodHigh? = withContext(Dispatchers.IO) {
+        val url = CHART_URL + URLEncoder.encode(yahooSymbol, "UTF-8") + "?range=${years}y&interval=1d"
+        Http.get(url)?.let { parseHigh(it) }
     }
 
     suspend fun search(market: Market, symbol: String): SearchHit? = withContext(Dispatchers.IO) {
@@ -102,6 +109,39 @@ object YahooApi {
             }
         }
         return byDate.values.sortedBy { it.date }
+    }
+
+    fun parseHigh(json: String): PeriodHigh? {
+        val result = JSONObject(json).optJSONObject("chart")
+            ?.optJSONArray("result")
+            ?.optJSONObject(0) ?: return null
+        val meta = result.optJSONObject("meta")
+        val offset = meta?.optLong("gmtoffset") ?: 0L
+        var best: PeriodHigh? = null
+        val timestamps = result.optJSONArray("timestamp")
+        val quote = result.optJSONObject("indicators")?.optJSONArray("quote")?.optJSONObject(0)
+        val highs = quote?.optJSONArray("high")
+        val volumes = quote?.optJSONArray("volume")
+        if (timestamps != null && highs != null) {
+            for (i in 0 until minOf(timestamps.length(), highs.length())) {
+                if (highs.isNull(i)) continue
+                // 休市日補的資料（成交量 0）不算
+                if (volumes != null && i < volumes.length() && !volumes.isNull(i) && volumes.getLong(i) == 0L) continue
+                val high = highs.getDouble(i)
+                if (high.isNaN() || high <= 0) continue
+                if (best == null || high > best.price) {
+                    best = PeriodHigh(high, Math.floorDiv(timestamps.getLong(i) + offset, 86_400L))
+                }
+            }
+        }
+        // 今天的最高價可能還沒進日線
+        if (meta != null && !meta.isNull("regularMarketDayHigh") && meta.optLong("regularMarketTime") > 0) {
+            val dayHigh = meta.optDouble("regularMarketDayHigh")
+            if (!dayHigh.isNaN() && dayHigh > 0 && (best == null || dayHigh > best.price)) {
+                best = PeriodHigh(dayHigh, Math.floorDiv(meta.getLong("regularMarketTime") + offset, 86_400L))
+            }
+        }
+        return best
     }
 
     fun parseSearch(json: String, candidates: List<String>): SearchHit? {

@@ -3,6 +3,7 @@ package com.rboneone.stockrecord.sync
 import com.rboneone.stockrecord.data.AlertType
 import com.rboneone.stockrecord.data.AssetCategory
 import com.rboneone.stockrecord.data.Dividend
+import com.rboneone.stockrecord.data.HighWatchItem
 import com.rboneone.stockrecord.data.Market
 import com.rboneone.stockrecord.data.Pledge
 import com.rboneone.stockrecord.data.PriceAlert
@@ -28,6 +29,8 @@ data class BackupData(
     /** 庫存股自訂順序 */
     val holdingOrder: Map<Market, List<String>> = emptyMap(),
     val watchlist: List<WatchItem> = emptyList(),
+    /** 股票漲跌清單（不含抓到的最高價，還原後重新抓） */
+    val highWatch: List<HighWatchItem> = emptyList(),
 )
 
 /** 備份檔格式（JSON），密碼不會放進備份 */
@@ -89,8 +92,16 @@ object Backup {
                     .put("name", it.name).put("position", it.position)
             )
         }
+        val highWatch = JSONArray()
+        data.highWatch.forEach {
+            highWatch.put(
+                JSONObject().put("id", it.id).put("market", it.market.name).put("symbol", it.symbol)
+                    .put("name", it.name).put("position", it.position)
+            )
+        }
         return JSONObject()
             .put("version", VERSION)
+            .put("highWatch", highWatch)
             .put("watchlist", watch)
             .put("holdingOrder", order)
             .put("pledges", pledges)
@@ -214,9 +225,23 @@ object Backup {
                 }.getOrNull()
             }
         } ?: emptyList()
+        val highWatch = root.optJSONArray("highWatch")?.let { a ->
+            (0 until a.length()).mapNotNull { i ->
+                val o = a.getJSONObject(i)
+                runCatching {
+                    HighWatchItem(
+                        id = o.getLong("id"),
+                        market = Market.valueOf(o.getString("market")),
+                        symbol = o.getString("symbol"),
+                        name = o.getString("name"),
+                        position = o.getInt("position"),
+                    )
+                }.getOrNull()
+            }
+        } ?: emptyList()
         return BackupData(
             root.optLong("exportedAt"), trades, dividends, fees, categories, root.optDouble("cash", 0.0), alerts, pledges,
-            holdingOrder, watchlist,
+            holdingOrder, watchlist, highWatch,
         )
     }
 }
