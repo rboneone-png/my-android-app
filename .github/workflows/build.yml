@@ -1,0 +1,83 @@
+name: Build APK
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # 需要完整紀錄與標籤，才能判斷既有 Release 是否還在目前的紀錄中
+          fetch-depth: 0
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Run unit tests
+        run: ./gradlew testDebugUnitTest
+
+      - name: Build APKs
+        run: ./gradlew assembleDebug assembleRelease
+
+      - name: Name release APK
+        run: |
+          VERSION=$(grep -oP 'versionName = "\K[^"]+' app/build.gradle.kts)
+          cp app/build/outputs/apk/release/app-release.apk "StockRecord-$VERSION.apk"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      # 正式版（最佳化，建議安裝這個）
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stock-record-release
+          path: StockRecord-*.apk
+
+      # 測試版（未最佳化，除錯用）
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stock-record-debug
+          path: app/build/outputs/apk/debug/*.apk
+
+      # 發布 GitHub Release（附上正式版 APK），兩種情況：
+      # 1. 推送 v1.0.0 這類標籤
+      # 2. 推送到 main，且這個版本還沒有 Release、並已寫好 docs/release-notes/v<版本>.md
+      - name: Publish GitHub Release
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            TAG="$GITHUB_REF_NAME"
+          else
+            [[ "$GITHUB_REF" == refs/heads/main ]] || exit 0
+            TAG="v$VERSION"
+            [ -f "docs/release-notes/$TAG.md" ] || { echo "沒有 $TAG 的發行說明，略過發布"; exit 0; }
+          fi
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            TAG_SHA=$(git rev-list -n 1 "$TAG" 2>/dev/null || true)
+            if [ -n "$TAG_SHA" ] && git merge-base --is-ancestor "$TAG_SHA" HEAD; then
+              echo "$TAG 已經發布過，略過"
+              exit 0
+            fi
+            # 修改紀錄被重整過，舊的 Release 指向已不存在的提交：刪除後重建
+            echo "$TAG 指向舊的修改紀錄，重新發布"
+            gh release delete "$TAG" --cleanup-tag --yes
+          fi
+          NOTES="docs/release-notes/$TAG.md"
+          if [ -f "$NOTES" ]; then
+            gh release create "$TAG" "StockRecord-$VERSION.apk" --target "$GITHUB_SHA" --title "股票記帳 $TAG" --notes-file "$NOTES"
+          else
+            gh release create "$TAG" "StockRecord-$VERSION.apk" --target "$GITHUB_SHA" --title "股票記帳 $TAG" --generate-notes
+          fi
