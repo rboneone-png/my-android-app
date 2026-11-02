@@ -1,4 +1,4 @@
-# 股票記帳 — 架構說明（1.2.0）
+# 股票記帳 — 架構說明（1.3.0）
 
 ## 總覽
 
@@ -73,6 +73,7 @@ app/src/main/java/com/rboneone/stockrecord/
 | `Valuation` | 加上報價：市值、未實現損益（預扣賣出費用）、總損益、日損益、市場彙總、自訂排序 |
 | `Allocation` | 資產配置：A 原型 + B 正二 + C 類現金 + D 現金 + E 其他；曝險 = A + 2B |
 | `PledgeCalculator` | 利息支出、個股／月份／整體維持率、三色等級、可質押市值、依月份分組 |
+| `MarketIndex`（data） | 可加入觀察的大盤指數清單：Yahoo 代號（^ 開頭，存入觀察清單）與 Google 財經代號 |
 | `HighWatch` | 股票漲跌：顯示用最高價（盤中創新高取現價）、漲跌幅 = 現價 ÷ 最高價 |
 | `DailyReturns` | 月報酬月曆的每日損益與報酬率（週／月以連乘） |
 | `MonthlyIncome` | 每月已實現損益與股利（圖表、Excel） |

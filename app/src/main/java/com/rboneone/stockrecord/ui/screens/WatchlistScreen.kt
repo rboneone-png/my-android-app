@@ -51,6 +51,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import com.rboneone.stockrecord.data.Market
+import com.rboneone.stockrecord.data.MarketIndex
 import com.rboneone.stockrecord.data.Quote
 import com.rboneone.stockrecord.data.WatchItem
 import com.rboneone.stockrecord.ui.AppViewModel
@@ -222,7 +223,7 @@ private fun WatchRow(item: WatchItem, quote: Quote?, modifier: Modifier) {
         Column(Modifier.weight(1.4f)) {
             Text(item.name, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(
-                "${item.symbol}・${item.market.label}",
+                watchSubtitle(item.market, item.symbol),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -272,6 +273,8 @@ private fun AddWatchDialog(vm: AppViewModel, onDismiss: () -> Unit) {
     var name by remember { mutableStateOf("") }
     var nameManual by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    var indexMode by remember { mutableStateOf(false) }
+    var index by remember { mutableStateOf<MarketIndex?>(null) }
     val nameHint = rememberStockNameLookup(vm, market, symbol, enabled = !nameManual) { name = it }
 
     AlertDialog(
@@ -282,34 +285,51 @@ private fun AddWatchDialog(vm: AppViewModel, onDismiss: () -> Unit) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Market.entries.forEach { m ->
                         FilterChip(
-                            selected = market == m,
-                            onClick = { market = m; nameManual = false },
+                            selected = !indexMode && market == m,
+                            onClick = { market = m; nameManual = false; indexMode = false; error = null },
                             label = { Text(m.label) },
                         )
                     }
+                    FilterChip(
+                        selected = indexMode,
+                        onClick = { indexMode = true; error = null },
+                        label = { Text("指數") },
+                    )
                 }
-                OutlinedTextField(
-                    value = symbol,
-                    onValueChange = { symbol = it; nameManual = false; error = null },
-                    label = { Text("股票代號") },
-                    placeholder = { Text(if (market == Market.TW) "例如 2330" else "例如 AAPL") },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters),
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it; nameManual = true },
-                    label = { Text("股票名稱") },
-                    supportingText = nameHint?.let { { Text(it) } },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
+                if (indexMode) {
+                    IndexPicker(index) { index = it; error = null }
+                } else {
+                    OutlinedTextField(
+                        value = symbol,
+                        onValueChange = { symbol = it; nameManual = false; error = null },
+                        label = { Text("股票代號") },
+                        placeholder = { Text(if (market == Market.TW) "例如 2330" else "例如 AAPL") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    OutlinedTextField(
+                        value = name,
+                        onValueChange = { name = it; nameManual = true },
+                        label = { Text("股票名稱") },
+                        supportingText = nameHint?.let { { Text(it) } },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
                 error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
             }
         },
         confirmButton = {
             TextButton(onClick = {
+                if (indexMode) {
+                    val idx = index ?: run { error = "請選擇指數"; return@TextButton }
+                    scope.launch {
+                        if (vm.addWatch(idx.market, idx.symbol, idx.name)) onDismiss()
+                        else error = "這檔股票已經在觀察清單中"
+                    }
+                    return@TextButton
+                }
                 val sym = symbol.trim().uppercase()
                 if (sym.isEmpty()) {
                     error = "請輸入股票代號"

@@ -12,9 +12,11 @@ object TwseMis {
     private const val URL = "https://mis.twse.com.tw/stock/api/getStockInfo.jsp"
 
     /** board：上市 "tse"、上櫃 "otc" */
-    suspend fun quote(symbol: String, board: String): ChartQuote? = withContext(Dispatchers.IO) {
-        val url = "$URL?ex_ch=${board}_${symbol.lowercase()}.tw&json=1&delay=0"
-        Http.get(url)?.let { parse(it) }
+    suspend fun quote(symbol: String, board: String): ChartQuote? = channel("${board}_${symbol.lowercase()}.tw")
+
+    /** 直接指定頻道，例如指數 tse_t00.tw（加權）、otc_o00.tw（櫃買） */
+    suspend fun channel(exCh: String): ChartQuote? = withContext(Dispatchers.IO) {
+        Http.get("$URL?ex_ch=$exCh&json=1&delay=0")?.let { parse(it) }
     }
 
     /**

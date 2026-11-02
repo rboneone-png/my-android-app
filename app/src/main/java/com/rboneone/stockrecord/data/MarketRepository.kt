@@ -28,6 +28,10 @@ class MarketRepository(private val dao: MarketDao) {
     fun observeInfo(): Flow<List<StockInfo>> = dao.observeInfo()
 
     suspend fun lookup(market: Market, symbol: String): LookupResult {
+        // 大盤指數不用搜尋，Yahoo 代號就是指數代號
+        MarketIndices.find(market, symbol)?.let {
+            return LookupResult.Found(StockInfo(market, it.symbol, it.name, it.symbol, System.currentTimeMillis()))
+        }
         dao.getInfo(market, symbol)?.let { return LookupResult.Found(it) }
         return try {
             resolve(market, symbol)?.let { LookupResult.Found(it) } ?: LookupResult.NotFound
@@ -83,7 +87,11 @@ class MarketRepository(private val dao: MarketDao) {
      */
     private suspend fun realtimeQuote(market: Market, symbol: String, info: StockInfo): ChartQuote? = try {
         val g = GoogleFinance.googleSymbol(market, symbol)
+        val index = MarketIndices.find(market, symbol)
         when {
+            index != null ->
+                index.google?.let { (gs, ex) -> GoogleFinance.stock(gs, ex) }
+                    ?: index.misChannel?.let { TwseMis.channel(it) }
             market == Market.TW && info.yahooSymbol.endsWith(".TWO", ignoreCase = true) ->
                 TwseMis.quote(symbol, "otc")
             market == Market.TW ->
