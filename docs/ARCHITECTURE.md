@@ -1,4 +1,4 @@
-# 股票記帳 — 架構說明（1.4.0）
+# 股票記帳 — 架構說明（1.4.1）
 
 ## 總覽
 
@@ -53,7 +53,7 @@ app/src/main/java/com/rboneone/stockrecord/
 | `stock_category` | 每檔股票的資產分類：原型／正二／類現金／其他 |
 | `price_alerts` | 股價通知條件與上次通知的交易日 |
 | `pledges` | 質押：股數、金額、利率、日期 |
-| `watchlist` | 觀察股票與排列順序 |
+| `watchlist` | 觀察股票、大盤指數（symbol 在 `MarketIndices` 清單內者顯示在「指數」分頁）與排列順序 |
 | `high_watch` | 「股票漲跌」清單、排列順序與近 2 年最高價快取 |
 | `quotes` | 報價快取（含美元匯率 `TWD=X`），離線時顯示 |
 | `stock_info` | 股票名稱與 Yahoo 代號快取 |

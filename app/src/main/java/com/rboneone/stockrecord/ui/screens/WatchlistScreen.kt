@@ -52,6 +52,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import com.rboneone.stockrecord.data.Market
 import com.rboneone.stockrecord.data.MarketIndex
+import com.rboneone.stockrecord.data.MarketIndices
 import com.rboneone.stockrecord.data.Quote
 import com.rboneone.stockrecord.data.WatchItem
 import com.rboneone.stockrecord.ui.AppViewModel
@@ -63,7 +64,7 @@ import kotlinx.coroutines.launch
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
 
-private enum class WatchTab(val label: String) { STOCKS("觀察股票"), HIGH("股票漲跌") }
+private enum class WatchTab(val label: String) { STOCKS("觀察股票"), INDEX("指數"), HIGH("股票漲跌") }
 
 @Composable
 fun WatchlistScreen(vm: AppViewModel) {
@@ -105,7 +106,8 @@ fun WatchlistScreen(vm: AppViewModel) {
         }
         Box(Modifier.weight(1f)) {
             when (tab) {
-                WatchTab.STOCKS -> WatchStocksTab(vm, refreshSeconds)
+                WatchTab.STOCKS -> WatchStocksTab(vm, refreshSeconds, indices = false)
+                WatchTab.INDEX -> WatchStocksTab(vm, refreshSeconds, indices = true)
                 WatchTab.HIGH -> HighWatchTab(vm, refreshSeconds)
             }
         }
@@ -113,8 +115,10 @@ fun WatchlistScreen(vm: AppViewModel) {
 }
 
 @Composable
-private fun WatchStocksTab(vm: AppViewModel, refreshSeconds: Int) {
-    val watchlist by vm.watchlist.collectAsStateWithLifecycle()
+private fun WatchStocksTab(vm: AppViewModel, refreshSeconds: Int, indices: Boolean) {
+    val all by vm.watchlist.collectAsStateWithLifecycle()
+    // 大盤指數與台指期放在「指數」分頁，其餘是「觀察股票」
+    val watchlist = remember(all, indices) { all.filter { MarketIndices.isIndex(it.symbol) == indices } }
     val quotes by vm.quotes.collectAsStateWithLifecycle()
     val haptic = LocalHapticFeedback.current
     var adding by remember { mutableStateOf(false) }
@@ -134,10 +138,10 @@ private fun WatchStocksTab(vm: AppViewModel, refreshSeconds: Int) {
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
             if (order.isEmpty()) {
-                EmptyHint("還沒有觀察的股票\n按右下角「新增觀察」")
+                EmptyHint(if (indices) "還沒有觀察的指數\n按右下角「新增指數」" else "還沒有觀察的股票\n按右下角「新增觀察」")
                 return@Column
             }
-            WatchHeader()
+            WatchHeader(if (indices) "指數" else "股票", if (indices) "點數" else "股價")
             LazyColumn(
                 state = listState,
                 contentPadding = PaddingValues(bottom = 96.dp),
@@ -167,7 +171,7 @@ private fun WatchStocksTab(vm: AppViewModel, refreshSeconds: Int) {
                 }
                 item(key = "hint") {
                     Text(
-                        "長按可拖曳調整順序，點一下可刪除。每 $refreshSeconds 秒自動更新報價。",
+                        "長按可拖曳調整順序，點一下可刪除。每 $refreshSeconds 秒自動更新${if (indices) "點數" else "報價"}。",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center,
@@ -179,18 +183,21 @@ private fun WatchStocksTab(vm: AppViewModel, refreshSeconds: Int) {
         ExtendedFloatingActionButton(
             onClick = { adding = true },
             icon = { Icon(Icons.Filled.Add, contentDescription = null) },
-            text = { Text("新增觀察") },
+            text = { Text(if (indices) "新增指數" else "新增觀察") },
             modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp),
         )
     }
 
-    if (adding) AddWatchDialog(vm, onDismiss = { adding = false })
+    if (adding) {
+        if (indices) AddIndexDialog(vm, existing = all.map { it.symbol }.toSet(), onDismiss = { adding = false })
+        else AddWatchDialog(vm, onDismiss = { adding = false })
+    }
 
     removing?.let { item ->
         AlertDialog(
             onDismissRequest = { removing = null },
             title = { Text("${item.name} ${item.symbol}") },
-            text = { Text("要從觀察清單中移除嗎？") },
+            text = { Text(if (indices) "要從指數清單中移除嗎？" else "要從觀察清單中移除嗎？") },
             confirmButton = {
                 TextButton(onClick = { vm.removeWatch(item); removing = null }) {
                     Text("移除", color = MaterialTheme.colorScheme.error)
@@ -202,12 +209,12 @@ private fun WatchStocksTab(vm: AppViewModel, refreshSeconds: Int) {
 }
 
 @Composable
-private fun WatchHeader() {
+private fun WatchHeader(nameLabel: String, priceLabel: String) {
     val style = MaterialTheme.typography.bodySmall
     val color = MaterialTheme.colorScheme.onSurfaceVariant
     Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
-        Text("股票", Modifier.weight(1.4f), style = style, color = color)
-        Text("股價", Modifier.weight(1f), style = style, color = color, textAlign = TextAlign.End)
+        Text(nameLabel, Modifier.weight(1.4f), style = style, color = color)
+        Text(priceLabel, Modifier.weight(1f), style = style, color = color, textAlign = TextAlign.End)
         Text("漲跌", Modifier.weight(1f), style = style, color = color, textAlign = TextAlign.End)
         Text("漲跌幅", Modifier.weight(1f), style = style, color = color, textAlign = TextAlign.End)
     }
@@ -273,8 +280,6 @@ private fun AddWatchDialog(vm: AppViewModel, onDismiss: () -> Unit) {
     var name by remember { mutableStateOf("") }
     var nameManual by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
-    var indexMode by remember { mutableStateOf(false) }
-    var index by remember { mutableStateOf<MarketIndex?>(null) }
     val nameHint = rememberStockNameLookup(vm, market, symbol, enabled = !nameManual) { name = it }
 
     AlertDialog(
@@ -285,51 +290,34 @@ private fun AddWatchDialog(vm: AppViewModel, onDismiss: () -> Unit) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Market.entries.forEach { m ->
                         FilterChip(
-                            selected = !indexMode && market == m,
-                            onClick = { market = m; nameManual = false; indexMode = false; error = null },
+                            selected = market == m,
+                            onClick = { market = m; nameManual = false },
                             label = { Text(m.label) },
                         )
                     }
-                    FilterChip(
-                        selected = indexMode,
-                        onClick = { indexMode = true; error = null },
-                        label = { Text("指數／期貨") },
-                    )
                 }
-                if (indexMode) {
-                    IndexPicker(index, { index = it; error = null })
-                } else {
-                    OutlinedTextField(
-                        value = symbol,
-                        onValueChange = { symbol = it; nameManual = false; error = null },
-                        label = { Text("股票代號") },
-                        placeholder = { Text(if (market == Market.TW) "例如 2330" else "例如 AAPL") },
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters),
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    OutlinedTextField(
-                        value = name,
-                        onValueChange = { name = it; nameManual = true },
-                        label = { Text("股票名稱") },
-                        supportingText = nameHint?.let { { Text(it) } },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
+                OutlinedTextField(
+                    value = symbol,
+                    onValueChange = { symbol = it; nameManual = false; error = null },
+                    label = { Text("股票代號") },
+                    placeholder = { Text(if (market == Market.TW) "例如 2330" else "例如 AAPL") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it; nameManual = true },
+                    label = { Text("股票名稱") },
+                    supportingText = nameHint?.let { { Text(it) } },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
                 error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
             }
         },
         confirmButton = {
             TextButton(onClick = {
-                if (indexMode) {
-                    val idx = index ?: run { error = "請選擇指數"; return@TextButton }
-                    scope.launch {
-                        if (vm.addWatch(idx.market, idx.symbol, idx.name)) onDismiss()
-                        else error = "這檔股票已經在觀察清單中"
-                    }
-                    return@TextButton
-                }
                 val sym = symbol.trim().uppercase()
                 if (sym.isEmpty()) {
                     error = "請輸入股票代號"
@@ -340,6 +328,37 @@ private fun AddWatchDialog(vm: AppViewModel, onDismiss: () -> Unit) {
                     else error = "這檔股票已經在觀察清單中"
                 }
             }) { Text("新增") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } },
+    )
+}
+
+/** 新增指數／台指期：從清單挑選，已加入的不再顯示 */
+@Composable
+private fun AddIndexDialog(vm: AppViewModel, existing: Set<String>, onDismiss: () -> Unit) {
+    val scope = rememberCoroutineScope()
+    val available = remember(existing) { MarketIndices.ALL.filter { it.symbol !in existing } }
+    var selected by remember { mutableStateOf<MarketIndex?>(null) }
+    var error by remember { mutableStateOf<String?>(null) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("新增指數") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (available.isEmpty()) Text("所有指數都已加入")
+                else IndexPicker(selected, { selected = it; error = null }, available)
+                error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                val idx = selected ?: run { error = "請選擇指數"; return@TextButton }
+                scope.launch {
+                    if (vm.addWatch(idx.market, idx.symbol, idx.name)) onDismiss()
+                    else error = "已經在清單中"
+                }
+            }, enabled = available.isNotEmpty()) { Text("新增") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } },
     )
