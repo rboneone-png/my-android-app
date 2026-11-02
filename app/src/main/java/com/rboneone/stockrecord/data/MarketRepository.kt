@@ -2,6 +2,9 @@ package com.rboneone.stockrecord.data
 
 import com.rboneone.stockrecord.domain.Bar
 import com.rboneone.stockrecord.domain.PeriodHigh
+import com.rboneone.stockrecord.network.ChartQuote
+import com.rboneone.stockrecord.network.GoogleFinance
+import com.rboneone.stockrecord.network.TwseMis
 import com.rboneone.stockrecord.network.YahooApi
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
@@ -9,6 +12,7 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import java.io.IOException
+import java.util.concurrent.ConcurrentHashMap
 
 sealed interface LookupResult {
     data class Found(val info: StockInfo) : LookupResult
@@ -67,9 +71,40 @@ class MarketRepository(private val dao: MarketDao) {
         )
     }
 
+    /** 美股代號 → Google 財經的交易所（找到一次就記住） */
+    private val usExchange = ConcurrentHashMap<String, String>()
+
+    /**
+     * 即時報價來源：
+     * - 台股上市：Google 財經（TPE），失敗時用證交所即時報價
+     * - 台股上櫃：證交所即時報價（Google 財經沒有上櫃股票）
+     * - 美股：Google 財經
+     * 都失敗時回傳 null，改用 Yahoo（台股約延遲 20 分鐘）
+     */
+    private suspend fun realtimeQuote(market: Market, symbol: String, info: StockInfo): ChartQuote? = try {
+        val g = GoogleFinance.googleSymbol(market, symbol)
+        when {
+            market == Market.TW && info.yahooSymbol.endsWith(".TWO", ignoreCase = true) ->
+                TwseMis.quote(symbol, "otc")
+            market == Market.TW ->
+                GoogleFinance.stock(g, GoogleFinance.TW_EXCHANGE) ?: TwseMis.quote(symbol, "tse")
+            else -> {
+                val known = usExchange[g]
+                known?.let { GoogleFinance.stock(g, it) }
+                    ?: GoogleFinance.US_EXCHANGES.filter { it != known }.firstNotNullOfOrNull { ex ->
+                        GoogleFinance.stock(g, ex)?.also { usExchange[g] = ex }
+                    }
+            }
+        }
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        null
+    }
+
     private suspend fun refreshOne(market: Market, symbol: String): Boolean {
         val info = (lookup(market, symbol) as? LookupResult.Found)?.info ?: return false
-        val chart = YahooApi.chart(info.yahooSymbol) ?: return false
+        val chart = realtimeQuote(market, symbol, info) ?: YahooApi.chart(info.yahooSymbol) ?: return false
         dao.upsertQuote(
             Quote(
                 market = market,
@@ -108,7 +143,14 @@ class MarketRepository(private val dao: MarketDao) {
     }
 
     private suspend fun refreshFx(): Boolean {
-        val chart = YahooApi.chart(Quote.USD_TWD) ?: return false
+        val google = try {
+            GoogleFinance.currency("USD", "TWD")
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            null
+        }
+        val chart = google ?: YahooApi.chart(Quote.USD_TWD) ?: return false
         dao.upsertQuote(
             Quote(
                 market = Market.US,

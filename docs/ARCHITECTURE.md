@@ -1,9 +1,12 @@
-# 股票記帳 — 架構說明（1.1.1）
+# 股票記帳 — 架構說明（1.2.0）
 
 ## 總覽
 
 單一 Android App（Kotlin、Jetpack Compose、Material 3），資料全部存在手機裡，沒有自建伺服器。
-外部服務只有兩個：Yahoo Finance（股價、匯率、股票名稱、歷史日線）與 Google Drive（選用的雲端備份）。
+外部服務：
+- 即時報價：Google 財經（台股上市、美股、美元匯率）、臺灣證券交易所 MIS（台股上櫃），失敗時改用 Yahoo Finance
+- Yahoo Finance：股票名稱、上市／上櫃判斷、歷史日線、2 年最高價
+- Google Drive：選用的雲端備份
 
 ```
 ┌──────────────────────── UI（Compose）────────────────────────┐
@@ -32,7 +35,7 @@ app/src/main/java/com/rboneone/stockrecord/
 ├── auth/                  帳號（PBKDF2 密碼雜湊）、指紋／臉部辨識
 ├── data/                  Room 資料表與 DAO、設定、報價快取
 ├── domain/                純計算邏輯（不依賴 Android，全部有單元測試）
-├── network/               Yahoo Finance：搜尋名稱、即時報價、歷史日線
+├── network/               Google 財經與證交所即時報價；Yahoo Finance 名稱、歷史日線
 ├── alerts/                股價通知與質押維持率通知（檢查、背景工作、系統通知）
 ├── sync/                  備份格式、Google Drive、備份檔匯入匯出、自動同步
 ├── export/                Excel（.xlsx）產生
@@ -76,7 +79,7 @@ app/src/main/java/com/rboneone/stockrecord/
 
 ## 主要流程
 
-**股價更新**：持股／觀察頁依設定秒數呼叫 `AppViewModel.refreshQuotes()` → `MarketRepository` 先查 `stock_info` 取得 Yahoo 代號（沒有就搜尋）→ 抓報價寫入 `quotes` → Room Flow 自動更新畫面 → 順便執行 `AlertChecker` 檢查通知。
+**股價更新**：持股／觀察頁依設定秒數呼叫 `AppViewModel.refreshQuotes()` → `MarketRepository` 先查 `stock_info` 取得 Yahoo 代號（沒有就搜尋）→ 依來源順序抓即時報價（Google 財經／證交所 → Yahoo）寫入 `quotes` → Room Flow 自動更新畫面 → 順便執行 `AlertChecker` 檢查通知。
 
 **通知**：`AlertWorker` 每 15 分鐘（App 關閉時）對所有帳號抓通知與質押股票的報價；條件成立且當天（交易所時區）尚未通知過才發出系統通知。
 
@@ -95,4 +98,4 @@ app/src/main/java/com/rboneone/stockrecord/
 ## 外部相依
 
 AndroidX（Compose、Room、Navigation、Lifecycle、WorkManager、Biometric）、Google Play Services Auth（Drive 授權）、
-sh.calvin.reorderable（拖曳排序）。股價資料來自 Yahoo Finance 非官方 API，介面可能變動，解析集中在 `network/YahooApi.kt`。
+sh.calvin.reorderable（拖曳排序）。股價資料來自 Google 財經、證交所與 Yahoo Finance 的非官方介面，可能變動；解析分別集中在 `network/GoogleFinance.kt`、`network/TwseMis.kt`、`network/YahooApi.kt`，來源順序在 `MarketRepository.realtimeQuote()`。
