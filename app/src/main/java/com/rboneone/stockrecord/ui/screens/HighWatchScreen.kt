@@ -46,6 +46,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.rboneone.stockrecord.data.HighWatchItem
 import com.rboneone.stockrecord.data.Market
 import com.rboneone.stockrecord.data.MarketIndex
+import com.rboneone.stockrecord.data.MarketIndices
 import com.rboneone.stockrecord.data.Quote
 import com.rboneone.stockrecord.domain.HighWatch
 import com.rboneone.stockrecord.ui.AppViewModel
@@ -246,7 +247,7 @@ private fun AddHighDialog(vm: AppViewModel, onDismiss: () -> Unit) {
                     )
                 }
                 if (indexMode) {
-                    IndexPicker(index) { index = it; error = null }
+                    IndexPicker(index, { index = it; error = null }, MarketIndices.ALL.filter { it.hasHistory })
                 } else {
                     OutlinedTextField(
                         value = symbol,

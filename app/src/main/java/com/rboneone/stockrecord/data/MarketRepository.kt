@@ -4,6 +4,7 @@ import com.rboneone.stockrecord.domain.Bar
 import com.rboneone.stockrecord.domain.PeriodHigh
 import com.rboneone.stockrecord.network.ChartQuote
 import com.rboneone.stockrecord.network.GoogleFinance
+import com.rboneone.stockrecord.network.TaifexMis
 import com.rboneone.stockrecord.network.TwseMis
 import com.rboneone.stockrecord.network.YahooApi
 import kotlinx.coroutines.CancellationException
@@ -92,6 +93,7 @@ class MarketRepository(private val dao: MarketDao) {
             index != null ->
                 index.google?.let { (gs, ex) -> GoogleFinance.stock(gs, ex) }
                     ?: index.misChannel?.let { TwseMis.channel(it) }
+                    ?: if (index.taifex) TaifexMis.nearMonthTxf() else null
             market == Market.TW && info.yahooSymbol.endsWith(".TWO", ignoreCase = true) ->
                 TwseMis.quote(symbol, "otc")
             market == Market.TW ->

@@ -1,10 +1,10 @@
-# 股票記帳 — 架構說明（1.3.0）
+# 股票記帳 — 架構說明（1.4.0）
 
 ## 總覽
 
 單一 Android App（Kotlin、Jetpack Compose、Material 3），資料全部存在手機裡，沒有自建伺服器。
 外部服務：
-- 即時報價：Google 財經（台股上市、美股、美元匯率）、臺灣證券交易所 MIS（台股上櫃），失敗時改用 Yahoo Finance
+- 即時報價：Google 財經（台股上市、美股、美元匯率、大盤指數）、臺灣證券交易所 MIS（台股上櫃）、期貨交易所 MIS（台指期近月），失敗時改用 Yahoo Finance
 - Yahoo Finance：股票名稱、上市／上櫃判斷、歷史日線、2 年最高價
 - Google Drive：選用的雲端備份
 
@@ -76,6 +76,7 @@ app/src/main/java/com/rboneone/stockrecord/
 | `MarketIndex`（data） | 可加入觀察的大盤指數清單：Yahoo 代號（^ 開頭，存入觀察清單）與 Google 財經代號 |
 | `HighWatch` | 股票漲跌：顯示用最高價（盤中創新高取現價）、漲跌幅 = 現價 ÷ 最高價 |
 | `DailyReturns` | 月報酬月曆的每日損益與報酬率（週／月以連乘） |
+| `AssetTrend` | 資產走勢：每月月底持股市值與平均成本法成本、圖表刻度 |
 | `MonthlyIncome` | 每月已實現損益與股利（圖表、Excel） |
 
 ## 主要流程

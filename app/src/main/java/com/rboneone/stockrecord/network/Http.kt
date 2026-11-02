@@ -18,6 +18,24 @@ object Http {
         }
     }
 
+    /** 以 JSON 格式 POST，回傳內容；錯誤處理同 get() */
+    fun postJson(url: String, json: String): String? {
+        val conn = URL(url).openConnection() as HttpURLConnection
+        conn.connectTimeout = 10_000
+        conn.readTimeout = 10_000
+        conn.requestMethod = "POST"
+        conn.doOutput = true
+        conn.setRequestProperty("User-Agent", "Mozilla/5.0")
+        conn.setRequestProperty("Content-Type", "application/json;charset=UTF-8")
+        try {
+            conn.outputStream.use { it.write(json.toByteArray(Charsets.UTF_8)) }
+            if (conn.responseCode !in 200..299) return null
+            return conn.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
+        } finally {
+            conn.disconnect()
+        }
+    }
+
     /** 以表單格式 POST，回傳內容；錯誤處理同 get() */
     fun postForm(url: String, form: Map<String, String>): String? {
         val body = form.entries.joinToString("&") { (k, v) ->

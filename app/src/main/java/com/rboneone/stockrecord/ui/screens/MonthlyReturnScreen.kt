@@ -16,6 +16,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -56,6 +57,8 @@ import java.time.temporal.TemporalAdjusters
 private val WEEKDAYS = listOf("一", "二", "三", "四", "五")
 private val HighlightBorder = Color(0xFF4DD0C4)
 
+private enum class ReturnMode(val label: String) { MONTHLY("月報酬"), TREND("資產走勢") }
+
 @Composable
 fun MonthlyReturnScreen(vm: AppViewModel) {
     val state by vm.month.collectAsStateWithLifecycle()
@@ -64,7 +67,9 @@ fun MonthlyReturnScreen(vm: AppViewModel) {
     val month = YearMonth.parse(monthText)
     val current = YearMonth.now()
 
-    LaunchedEffect(market, monthText) { vm.loadMonth(market, month) }
+    var mode by rememberSaveable { mutableStateOf(ReturnMode.MONTHLY) }
+
+    LaunchedEffect(market, monthText, mode) { if (mode == ReturnMode.MONTHLY) vm.loadMonth(market, month) }
 
     Column(Modifier.fillMaxSize()) {
         ScreenTopBar("月報酬")
@@ -72,6 +77,18 @@ fun MonthlyReturnScreen(vm: AppViewModel) {
             Market.entries.forEach { m ->
                 Tab(selected = market == m, onClick = { market = m }, text = { Text(m.label) })
             }
+        }
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            ReturnMode.entries.forEach { m ->
+                FilterChip(selected = mode == m, onClick = { mode = m }, label = { Text(m.label) })
+            }
+        }
+        if (mode == ReturnMode.TREND) {
+            AssetTrendBody(vm, market)
+            return@Column
         }
         if (state.loading) LinearProgressIndicator(Modifier.fillMaxWidth())
 

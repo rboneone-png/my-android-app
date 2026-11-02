@@ -293,11 +293,11 @@ private fun AddWatchDialog(vm: AppViewModel, onDismiss: () -> Unit) {
                     FilterChip(
                         selected = indexMode,
                         onClick = { indexMode = true; error = null },
-                        label = { Text("指數") },
+                        label = { Text("指數／期貨") },
                     )
                 }
                 if (indexMode) {
-                    IndexPicker(index) { index = it; error = null }
+                    IndexPicker(index, { index = it; error = null })
                 } else {
                     OutlinedTextField(
                         value = symbol,

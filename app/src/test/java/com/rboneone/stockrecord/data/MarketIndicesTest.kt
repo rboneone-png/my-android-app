@@ -26,4 +26,15 @@ class MarketIndicesTest {
         assertEquals(MarketIndices.ALL.size, MarketIndices.ALL.map { it.symbol }.toSet().size)
         MarketIndices.ALL.forEach { assertTrue(MarketIndices.isIndex(it.symbol)) }
     }
+
+    @Test
+    fun futuresHasNoHistoryAndOwnKind() {
+        val f = MarketIndices.find(Market.TW, "TXF1")!!
+        assertEquals("台指期近月", f.name)
+        assertEquals("期貨", f.kind)
+        assertTrue(f.taifex && !f.hasHistory)
+        assertEquals("期貨・台股", watchSubtitle(Market.TW, "TXF1"))
+        // 有歷史資料的才能用在「股票漲跌」
+        assertTrue(MarketIndices.ALL.filter { it.hasHistory }.none { it.symbol == "TXF1" })
+    }
 }

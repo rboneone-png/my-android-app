@@ -19,13 +19,13 @@ import com.rboneone.stockrecord.data.MarketIndices
 
 /** 觀察清單的副標題：指數顯示「指數・台股」，股票顯示「2330・台股」 */
 fun watchSubtitle(market: Market, symbol: String): String =
-    if (MarketIndices.isIndex(symbol)) "指數・${market.label}" else "$symbol・${market.label}"
+    MarketIndices.kindOf(symbol)?.let { "$it・${market.label}" } ?: "$symbol・${market.label}"
 
-/** 新增觀察時選擇大盤指數 */
+/** 新增觀察時選擇大盤指數／台指期 */
 @Composable
-fun IndexPicker(selected: MarketIndex?, onSelect: (MarketIndex) -> Unit) {
+fun IndexPicker(selected: MarketIndex?, onSelect: (MarketIndex) -> Unit, items: List<MarketIndex> = MarketIndices.ALL) {
     Column {
-        MarketIndices.ALL.forEach { index ->
+        items.forEach { index ->
             Row(
                 Modifier
                     .fillMaxWidth()
@@ -36,7 +36,7 @@ fun IndexPicker(selected: MarketIndex?, onSelect: (MarketIndex) -> Unit) {
                 RadioButton(selected = index == selected, onClick = null)
                 Text(index.name, Modifier.weight(1f).padding(start = 8.dp))
                 Text(
-                    index.market.label,
+                    "${index.kind}・${index.market.label}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

@@ -18,6 +18,8 @@ import com.rboneone.stockrecord.data.Trade
 import com.rboneone.stockrecord.data.WatchItem
 import com.rboneone.stockrecord.data.HighWatchItem
 import com.rboneone.stockrecord.domain.Allocation
+import com.rboneone.stockrecord.domain.AssetPoint
+import com.rboneone.stockrecord.domain.AssetTrend
 import com.rboneone.stockrecord.domain.AllocationView
 import com.rboneone.stockrecord.domain.DailyReturns
 import com.rboneone.stockrecord.domain.MonthIncome
@@ -56,6 +58,13 @@ data class MonthState(
     val loading: Boolean = false,
     val days: List<DayReturn> = emptyList(),
     val total: PeriodReturn? = null,
+    val error: String? = null,
+)
+
+data class AssetTrendState(
+    val market: Market = Market.TW,
+    val loading: Boolean = false,
+    val points: List<AssetPoint> = emptyList(),
     val error: String? = null,
 )
 
@@ -234,6 +243,55 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 days = days,
                 total = DailyReturns.combine(days),
                 error = if (failed.isEmpty()) null else "無法取得歷史股價：${failed.joinToString("、")}",
+            )
+        }
+    }
+
+    // ---- 資產走勢 ----
+
+    private val _assetTrend = MutableStateFlow(AssetTrendState())
+    val assetTrend: StateFlow<AssetTrendState> = _assetTrend.asStateFlow()
+    private var trendJob: Job? = null
+
+    /** 計算從第一筆紀錄到本月，每個月底的持股市值與成本 */
+    fun loadAssetTrend(market: Market) {
+        trendJob?.cancel()
+        _assetTrend.value = AssetTrendState(market, loading = true)
+        trendJob = viewModelScope.launch {
+            val trades = tradeDao.getAll().filter { it.market == market }
+            val dividends = dividendDao.getAll().filter { it.market == market }
+            val first = (trades.map { it.date } + dividends.map { it.date }).minOrNull()
+            if (first == null) {
+                _assetTrend.value = AssetTrendState(market)
+                return@launch
+            }
+            val today = LocalDate.now().toEpochDay()
+            val months = AssetTrend.monthsFrom(AssetTrend.monthOf(first), YearMonth.now())
+            // 只需要月底有持股的股票的歷史價格
+            val monthEnds = months.map { minOf(it.atEndOfMonth().toEpochDay(), today) }
+            val symbols = (trades.map { it.symbol } + dividends.map { it.symbol }).distinct().filter { sym ->
+                val t = trades.filter { it.symbol == sym }
+                val d = dividends.filter { it.symbol == sym }
+                monthEnds.any { Portfolio.sharesOn(t, d, it) > 1e-9 }
+            }
+            val bars = symbols.map { sym ->
+                async {
+                    val from = trades.filter { it.symbol == sym }.minOf { it.date } - 15
+                    sym to runCatching { marketRepository.history(market, sym, from, today, cacheable = false) }.getOrNull()
+                }
+            }.awaitAll()
+            val failed = bars.filter { it.second == null }.map { it.first }
+            val latest = db.marketDao().getQuotes()
+                .filter { it.market == market && it.price > 0 }
+                .associate { it.symbol to it.price }
+            val points = AssetTrend.compute(
+                trades, dividends,
+                bars.mapNotNull { (sym, b) -> b?.let { sym to it } }.toMap(),
+                months, today, latest,
+            )
+            _assetTrend.value = AssetTrendState(
+                market, points = points,
+                error = if (failed.isEmpty()) null else "無法取得歷史股價：${failed.joinToString("、")}，該股票以最近成交價估算",
             )
         }
     }
