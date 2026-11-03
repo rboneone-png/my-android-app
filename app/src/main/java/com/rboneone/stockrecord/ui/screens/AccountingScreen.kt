@@ -59,13 +59,14 @@ fun AccountingScreen(
     val cashFlows by vm.cashFlows.collectAsStateWithLifecycle()
     val trades by vm.trades.collectAsStateWithLifecycle()
     val pledges by vm.pledges.collectAsStateWithLifecycle()
+    val dividends by vm.dividends.collectAsStateWithLifecycle()
     val quotes by vm.quotes.collectAsStateWithLifecycle()
     // 存入與領出紀錄預設收合
     var expanded by rememberSaveable { mutableStateOf(false) }
     val today = LocalDate.now().toEpochDay()
     val usdTwd = quotes[Market.US to Quote.USD_TWD]?.price
-    val account = remember(cashFlows, trades, pledges, usdTwd, today) {
-        Accounting.dayAccount(cashFlows, trades, pledges, usdTwd, today)
+    val account = remember(cashFlows, trades, pledges, dividends, usdTwd, today) {
+        Accounting.dayAccount(cashFlows, trades, pledges, usdTwd, today, dividends)
     }
 
     // 美股買賣要用匯率換算，進來時順便更新報價
@@ -110,7 +111,8 @@ fun AccountingScreen(
                     )
                     Text(
                         "= 存入現金 ${twd(account.deposits)} − 領出現金 ${twd(account.withdrawals)}" +
-                            " + 帳務累計 ${signedTwd(account.accountTotal)} + 質押金額累計 ${twd(account.pledgedTotal)}",
+                            " + 帳務累計 ${signedTwd(account.accountTotal)} + 質押金額累計 ${twd(account.pledgedTotal)}" +
+                            " + 股利累計 ${twd(account.dividendsTotal)}",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -119,10 +121,12 @@ fun AccountingScreen(
                     Item("當日買進金額", twd(account.buys))
                     Item("當日帳務（賣出 − 買進）", signedTwd(account.dayNet), bold = true)
                     Item("當日質押金額", twd(account.pledged))
+                    Item("當日股利（實際入帳）", twd(account.dividendsToday))
                     HorizontalDivider()
                     // 前幾天的買賣與質押會留在餘額裡，這裡列出累計
                     Item("帳務累計（歷來賣出 − 買進，含今日）", signedTwd(account.accountTotal))
                     Item("質押金額累計（含今日）", twd(account.pledgedTotal))
+                    Item("股利累計（含今日）", twd(account.dividendsTotal))
                     when {
                         account.usMissingRate -> Text(
                             "尚未取得美元匯率，美股買賣未計入，請到持股總覽更新股價。",
@@ -189,8 +193,9 @@ fun AccountingScreen(
                 }
             }
             Text(
-                "當日可用餘額 = 存入現金 − 領出現金 + 帳務累計 + 質押金額累計。存入、領出、帳務與質押都是歷來累計，" +
-                    "前幾天的買賣與質押會留在餘額裡；當日帳務（賣出 − 買進）是其中今天的部分。\n" +
+                "當日可用餘額 = 存入現金 − 領出現金 + 帳務累計 + 質押金額累計 + 股利累計。這些都是歷來累計，" +
+                    "前幾天的買賣、質押與股利會留在餘額裡；當日帳務（賣出 − 買進）是其中今天的部分。\n" +
+                    "股利為實際入帳的現金股利（已扣除代扣稅與匯費），股票股利不計。\n" +
                     "賣出／買進金額為成交金額（股數 × 成交價，未含手續費與證交稅），" +
                     "美股以目前匯率換算成台幣。所有金額四捨五入到整數。",
                 style = MaterialTheme.typography.bodySmall,

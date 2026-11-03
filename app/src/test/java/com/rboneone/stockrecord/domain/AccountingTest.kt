@@ -2,6 +2,7 @@ package com.rboneone.stockrecord.domain
 
 import com.rboneone.stockrecord.data.CashFlow
 import com.rboneone.stockrecord.data.CashFlowType
+import com.rboneone.stockrecord.data.Dividend
 import com.rboneone.stockrecord.data.Market
 import com.rboneone.stockrecord.data.Pledge
 import com.rboneone.stockrecord.data.Trade
@@ -142,5 +143,39 @@ class AccountingTest {
         val a = Accounting.dayAccount(emptyList(), emptyList(), emptyList(), null, today)
         assertEquals(0L, a.available)
         assertEquals(0L, a.dayNet)
+    }
+
+    private fun dividend(id: Long, date: Long, cash: Double, tax: Double = 0.0, fee: Double = 0.0, market: Market = Market.TW) =
+        Dividend(id, market, "A", "A", date, cash, tax, fee, 0.0)
+
+    @Test
+    fun dividends_addToAvailable_netOfTaxAndFee_andCarryOver() {
+        val flows = listOf(flow(1, CashFlowType.DEPOSIT, today - 30, 100_000.0))
+        val dividends = listOf(
+            dividend(1, today - 2, 25_000.0, tax = 527.0, fee = 10.0),   // 實際入帳 24,463
+            dividend(2, today, 5_000.0),                                  // 今天入帳 5,000
+            dividend(3, today + 1, 9_999.0),                              // 還沒到
+        )
+        val a = Accounting.dayAccount(flows, emptyList(), emptyList(), null, today, dividends)
+        assertEquals(5_000L, a.dividendsToday)
+        assertEquals(24_463L + 5_000L, a.dividendsTotal)
+        assertEquals(100_000L + 24_463L + 5_000L, a.available)
+        // 隔天沒有新股利：今天的股利歸 0，但累計與餘額不變
+        val next = Accounting.dayAccount(flows, emptyList(), emptyList(), null, today + 1, dividends)
+        assertEquals(9_999L, next.dividendsToday)
+        val later = Accounting.dayAccount(flows, emptyList(), emptyList(), null, today + 2, dividends.dropLast(1))
+        assertEquals(0L, later.dividendsToday)
+        assertEquals(100_000L + 24_463L + 5_000L, later.available)
+    }
+
+    @Test
+    fun usDividends_convertedAtRate_orFlaggedWhenMissing() {
+        val dividends = listOf(dividend(1, today, 100.55, tax = 30.165, market = Market.US))   // 實際 70.385 美元
+        val a = Accounting.dayAccount(emptyList(), emptyList(), emptyList(), 32.0, today, dividends)
+        assertEquals(Accounting.round(70.385 * 32.0), a.dividendsTotal)    // 2,252.32 → 2,252
+        assertFalse(a.usMissingRate)
+        val none = Accounting.dayAccount(emptyList(), emptyList(), emptyList(), null, today, dividends)
+        assertEquals(0L, none.dividendsTotal)
+        assertTrue(none.usMissingRate)
     }
 }
