@@ -11,6 +11,7 @@ import com.rboneone.stockrecord.data.CashFlow
 import com.rboneone.stockrecord.data.Dividend
 import com.rboneone.stockrecord.data.LookupResult
 import com.rboneone.stockrecord.data.Market
+import com.rboneone.stockrecord.data.Quote
 import com.rboneone.stockrecord.data.Pledge
 import com.rboneone.stockrecord.data.PriceAlert
 import com.rboneone.stockrecord.data.StockCategory
@@ -18,6 +19,7 @@ import com.rboneone.stockrecord.data.SyncConfig
 import com.rboneone.stockrecord.data.Trade
 import com.rboneone.stockrecord.data.WatchItem
 import com.rboneone.stockrecord.data.HighWatchItem
+import com.rboneone.stockrecord.domain.Accounting
 import com.rboneone.stockrecord.domain.Allocation
 import com.rboneone.stockrecord.domain.AssetPoint
 import com.rboneone.stockrecord.domain.AssetTrend
@@ -43,6 +45,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -127,18 +130,30 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         .map { list -> list.associate { (it.market to it.symbol) to it.category } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
-    val cash: StateFlow<Double> = settingsRepository.cash
-
     val holdingOrder: StateFlow<Map<Market, List<String>>> = settingsRepository.holdingOrder
 
     fun setHoldingOrder(market: Market, symbols: List<String>) = settingsRepository.setHoldingOrder(market, symbols)
 
-    val allocation: StateFlow<AllocationView?> = combine(
-        portfolio.filterNotNull(),
-        categories,
-        cash,
-    ) { view, categories, cash -> Allocation.build(view, categories, cash) }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+    /**
+     * 帳務管理的當日可用餘額（台幣），資產配置的「現金」就是它。
+     * 用到後面才宣告的資料流，所以用 lazy，第一次使用時才建立。
+     */
+    private val accountAvailable: Flow<Double> by lazy {
+        combine(cashFlows, trades, pledges, dividends, quotes) { cashFlows, trades, pledges, dividends, quotes ->
+            val usdTwd = quotes[Market.US to Quote.USD_TWD]?.price
+            Accounting.dayAccount(cashFlows, trades, pledges, usdTwd, LocalDate.now().toEpochDay(), dividends)
+                .available.toDouble()
+        }
+    }
+
+    val allocation: StateFlow<AllocationView?> by lazy {
+        combine(
+            portfolio.filterNotNull(),
+            categories,
+            accountAvailable,
+        ) { view, categories, cash -> Allocation.build(view, categories, cash) }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+    }
 
     /** 尚未分類的持股數量，持股總覽用來提醒 */
     val uncategorizedCount: StateFlow<Int> = combine(holdings, categories) { holdings, categories ->
@@ -154,8 +169,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     suspend fun getCategory(market: Market, symbol: String): AssetCategory? = categoryDao.get(market, symbol)?.category
-
-    fun setCash(amount: Double) = settingsRepository.setCash(amount)
 
     private val _refreshing = MutableStateFlow(false)
     val refreshing: StateFlow<Boolean> = _refreshing.asStateFlow()
