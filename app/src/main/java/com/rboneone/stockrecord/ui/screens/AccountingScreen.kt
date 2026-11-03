@@ -110,7 +110,7 @@ fun AccountingScreen(
                     )
                     Text(
                         "= 存入現金 ${twd(account.deposits)} − 領出現金 ${twd(account.withdrawals)}" +
-                            " + 當日帳務 ${signedTwd(account.dayNet)} + 當日質押金額 ${twd(account.pledged)}",
+                            " + 帳務累計 ${signedTwd(account.accountTotal)} + 質押金額累計 ${twd(account.pledgedTotal)}",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -119,14 +119,18 @@ fun AccountingScreen(
                     Item("當日買進金額", twd(account.buys))
                     Item("當日帳務（賣出 − 買進）", signedTwd(account.dayNet), bold = true)
                     Item("當日質押金額", twd(account.pledged))
+                    HorizontalDivider()
+                    // 前幾天的買賣與質押會留在餘額裡，這裡列出累計
+                    Item("帳務累計（歷來賣出 − 買進，含今日）", signedTwd(account.accountTotal))
+                    Item("質押金額累計（含今日）", twd(account.pledgedTotal))
                     when {
                         account.usMissingRate -> Text(
-                            "尚未取得美元匯率，今天的美股買賣未計入，請到持股總覽更新股價。",
+                            "尚未取得美元匯率，美股買賣未計入，請到持股總覽更新股價。",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.error,
                         )
                         account.usdTwd != null -> Text(
-                            "美股買賣以當日匯率 %.4f 換算成台幣".format(account.usdTwd),
+                            "美股買賣以目前匯率 %.4f 換算成台幣（過去的美股買賣也用同一個匯率）".format(account.usdTwd),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -185,9 +189,10 @@ fun AccountingScreen(
                 }
             }
             Text(
-                "當日可用餘額 = 存入現金 − 領出現金 + 當日帳務 + 當日質押金額；存入、領出為截至今天的累計。\n" +
-                    "當日賣出／買進金額為今天所有賣出／買進股票的成交金額（股數 × 成交價，未含手續費與證交稅），" +
-                    "美股以當日匯率換算成台幣。所有金額四捨五入到整數。",
+                "當日可用餘額 = 存入現金 − 領出現金 + 帳務累計 + 質押金額累計。存入、領出、帳務與質押都是歷來累計，" +
+                    "前幾天的買賣與質押會留在餘額裡；當日帳務（賣出 − 買進）是其中今天的部分。\n" +
+                    "賣出／買進金額為成交金額（股數 × 成交價，未含手續費與證交稅），" +
+                    "美股以目前匯率換算成台幣。所有金額四捨五入到整數。",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(bottom = 16.dp),

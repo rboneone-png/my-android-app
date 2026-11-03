@@ -8,12 +8,19 @@ import com.rboneone.stockrecord.data.Trade
 import com.rboneone.stockrecord.data.TradeType
 
 /**
- * 帳務管理：單一台幣帳戶，某一天的帳務。所有金額都已四捨五入到整數（元）。
+ * 帳務管理：單一台幣帳戶，截至某一天的帳務。所有金額都已四捨五入到整數（元）。
  *
- * - B 當日賣出金額、C 當日買進金額：台股 + 美股（以當日匯率換成台幣）
- * - D 當日帳務 = B − C
- * - 當日質押金額：今天新增的質押金額
- * - A 當日可用餘額 = 存入現金 − 領出現金 + D + 當日質押金額（存入、領出為截至當天的累計）
+ * 當日（今天）：
+ * - B 當日賣出金額、C 當日買進金額：台股 + 美股（以匯率換成台幣）
+ * - D 當日帳務 = B − C；當日質押金額：今天新增的質押金額
+ *
+ * 累計（歷來到今天，隔天不會消失）：
+ * - 帳務累計 = 歷來每一天（賣出 − 買進）的總和，今天的就是 D
+ * - 質押金額累計 = 歷來質押金額的總和
+ * - 存入現金、領出現金：截至今天的累計
+ *
+ * A 當日可用餘額 = 存入現金 − 領出現金 + 帳務累計 + 質押金額累計
+ * （當天的結果 = 存入 − 領出 + D + 當日質押金額 + 前幾天留下的帳務與質押）
  */
 data class DayAccount(
     /** 截至當天累計存入的現金 */
@@ -26,6 +33,10 @@ data class DayAccount(
     val buys: Long,
     /** 當日質押金額 */
     val pledged: Long,
+    /** 歷來（到今天）每一天賣出 − 買進的總和 */
+    val accountTotal: Long,
+    /** 歷來（到今天）質押金額的總和 */
+    val pledgedTotal: Long,
     /** 換算美股用的美元兌台幣匯率；沒有匯率時為 null */
     val usdTwd: Double?,
     /** 今天有美股買賣，但沒有匯率而無法換算（未計入） */
@@ -34,8 +45,8 @@ data class DayAccount(
     /** D：當日帳務 = B − C */
     val dayNet: Long get() = sells - buys
 
-    /** A：當日可用餘額 = 存入現金 − 領出現金 + D + 當日質押金額 */
-    val available: Long get() = deposits - withdrawals + dayNet + pledged
+    /** A：當日可用餘額 = 存入現金 − 領出現金 + 帳務累計 + 質押金額累計 */
+    val available: Long get() = deposits - withdrawals + accountTotal + pledgedTotal
 }
 
 object Accounting {
@@ -50,7 +61,8 @@ object Accounting {
         date: Long,
     ): DayAccount {
         val flows = cashFlows.filter { it.date <= date }
-        val today = trades.filter { it.date == date }
+        val upToToday = trades.filter { it.date <= date }
+        val today = upToToday.filter { it.date == date }
         val rate = usdTwd?.takeIf { it > 0 }
         var usMissing = false
 
@@ -60,14 +72,19 @@ object Accounting {
             Market.US -> if (rate != null) round(t.amount * rate) else { usMissing = true; 0L }
         }
 
-        val sells = today.filter { it.type == TradeType.SELL }.sumOf { twd(it) }
-        val buys = today.filter { it.type == TradeType.BUY }.sumOf { twd(it) }
+        // 每筆各自換算、四捨五入；今天與歷來用同一份換算結果，加總才會對得上
+        val converted = upToToday.associateWith { twd(it) }
+        fun sum(list: List<Trade>, type: TradeType) = list.filter { it.type == type }.sumOf { converted.getValue(it) }
+        val sells = sum(today, TradeType.SELL)
+        val buys = sum(today, TradeType.BUY)
         return DayAccount(
             deposits = round(flows.filter { it.type == CashFlowType.DEPOSIT }.sumOf { it.amount }),
             withdrawals = round(flows.filter { it.type == CashFlowType.WITHDRAW }.sumOf { it.amount }),
             sells = sells,
             buys = buys,
             pledged = round(pledges.filter { it.date == date }.sumOf { it.amount }),
+            accountTotal = sum(upToToday, TradeType.SELL) - sum(upToToday, TradeType.BUY),
+            pledgedTotal = round(pledges.filter { it.date <= date }.sumOf { it.amount }),
             usdTwd = rate,
             usMissingRate = usMissing,
         )
