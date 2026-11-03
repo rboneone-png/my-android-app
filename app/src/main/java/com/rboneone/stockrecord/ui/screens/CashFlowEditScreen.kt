@@ -43,13 +43,11 @@ fun CashFlowEditScreen(
     vm: AppViewModel,
     flowId: Long,
     initialType: CashFlowType,
-    initialMarket: Market,
     onDone: () -> Unit,
 ) {
     val isNew = flowId == 0L
     var loaded by rememberSaveable { mutableStateOf(isNew) }
     var type by rememberSaveable { mutableStateOf(initialType) }
-    var market by rememberSaveable { mutableStateOf(initialMarket) }
     var amountText by rememberSaveable { mutableStateOf("") }
     var note by rememberSaveable { mutableStateOf("") }
     var date by rememberSaveable { mutableLongStateOf(LocalDate.now().toEpochDay()) }
@@ -62,20 +60,20 @@ fun CashFlowEditScreen(
         val f = vm.getCashFlow(flowId) ?: return@LaunchedEffect
         original = f
         if (!loaded) {
-            type = f.type; market = f.market; amountText = plainNumber(f.amount); note = f.note; date = f.date
+            type = f.type; amountText = plainNumber(f.amount); note = f.note; date = f.date
             loaded = true
         }
     }
 
     val amount = amountText.toAmountOrNull()
-    val currency = if (market == Market.TW) "元" else "美元"
 
     fun save() {
         if (amount == null || amount <= 0) {
             error = "請輸入大於 0 的金額"
             return
         }
-        vm.saveCashFlow(CashFlow(id = flowId, market = market, type = type, date = date, amount = amount, note = note.trim()))
+        // 帳務管理是單一台幣帳戶
+        vm.saveCashFlow(CashFlow(id = flowId, market = Market.TW, type = type, date = date, amount = amount, note = note.trim()))
         onDone()
     }
 
@@ -96,12 +94,12 @@ fun CashFlowEditScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text(
-                "${market.label}帳戶（${if (market == Market.TW) "台幣" else "美元"}）",
+                "新台幣帳戶",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             NumberField(
-                amountText, { amountText = it; error = null }, "金額（$currency）",
+                amountText, { amountText = it; error = null }, "金額（元）",
                 modifier = Modifier.fillMaxWidth(),
             )
             DateDropdowns(date) { date = it }

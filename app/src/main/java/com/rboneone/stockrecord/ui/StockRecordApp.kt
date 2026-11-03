@@ -164,23 +164,21 @@ fun StockRecordApp(vm: AppViewModel) {
                 AccountingScreen(
                     vm,
                     onBack = { nav.popBackStack() },
-                    onAdd = { type, market -> nav.navigate("cash/0?type=${type.name}&market=${market.name}") },
+                    onAdd = { type -> nav.navigate("cash/0?type=${type.name}") },
                     onEdit = { nav.navigate("cash/$it") },
                 )
             }
             composable(
-                "cash/{id}?type={type}&market={market}",
+                "cash/{id}?type={type}",
                 arguments = listOf(
                     navArgument("id") { type = NavType.LongType },
                     navArgument("type") { type = NavType.StringType; defaultValue = CashFlowType.DEPOSIT.name },
-                    navArgument("market") { type = NavType.StringType; defaultValue = Market.TW.name },
                 ),
             ) { entry ->
                 CashFlowEditScreen(
                     vm = vm,
                     flowId = entry.arguments?.getLong("id") ?: 0,
                     initialType = CashFlowType.valueOf(entry.arguments?.getString("type") ?: CashFlowType.DEPOSIT.name),
-                    initialMarket = Market.valueOf(entry.arguments?.getString("market") ?: Market.TW.name),
                     onDone = { nav.popBackStack() },
                 )
             }
