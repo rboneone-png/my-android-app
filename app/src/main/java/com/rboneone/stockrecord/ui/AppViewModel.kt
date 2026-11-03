@@ -31,6 +31,7 @@ import com.rboneone.stockrecord.domain.FeeSettings
 import com.rboneone.stockrecord.domain.Holding
 import com.rboneone.stockrecord.domain.PeriodReturn
 import com.rboneone.stockrecord.domain.PledgeCalculator
+import com.rboneone.stockrecord.domain.PledgeCandidate
 import com.rboneone.stockrecord.domain.PledgeView
 import com.rboneone.stockrecord.domain.Portfolio
 import com.rboneone.stockrecord.domain.PortfolioView
@@ -345,6 +346,13 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     ) { pledges, quotes, portfolio, categories, includeLev ->
         PledgeCalculator.build(pledges, quotes, portfolio, categories, includeLev)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    /** 質押選擇清單（含正二；是否顯示由畫面依「包含正二」開關決定） */
+    val pledgeCandidates: StateFlow<List<PledgeCandidate>> = combine(
+        pledges, quotes, portfolio, categories,
+    ) { pledges, quotes, portfolio, categories ->
+        PledgeCalculator.candidates(pledges, quotes, portfolio, categories)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     suspend fun getPledge(id: Long): Pledge? = pledgeDao.get(id)
 

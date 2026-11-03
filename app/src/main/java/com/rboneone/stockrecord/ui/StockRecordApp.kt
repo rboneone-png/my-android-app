@@ -1,5 +1,6 @@
 package com.rboneone.stockrecord.ui
 
+import android.net.Uri
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -33,6 +34,7 @@ import com.rboneone.stockrecord.ui.screens.AlertsScreen
 import com.rboneone.stockrecord.ui.screens.AllocationScreen
 import com.rboneone.stockrecord.ui.screens.ChartsScreen
 import com.rboneone.stockrecord.ui.screens.PledgeEditScreen
+import com.rboneone.stockrecord.ui.screens.PledgePickScreen
 import com.rboneone.stockrecord.ui.screens.PledgeScreen
 import com.rboneone.stockrecord.ui.theme.pledgeColor
 import androidx.compose.material3.NavigationBarItemDefaults
@@ -64,6 +66,7 @@ private enum class Tab(val route: String, val label: String, val icon: ImageVect
 }
 
 private const val RECORDS_ROUTE = "records"
+private const val PLEDGE_PICK_ROUTE = "pledge-pick"
 private fun tradeRoute(id: Long = 0) = "trade/$id"
 private fun dividendRoute(id: Long = 0) = "dividend/$id"
 
@@ -152,15 +155,31 @@ fun StockRecordApp(vm: AppViewModel) {
             }
             composable("charts") { ChartsScreen(vm, onBack = { nav.popBackStack() }) }
             composable(Tab.ALLOCATION.route) { AllocationScreen(vm) }
-            composable(Tab.PLEDGE.route) { PledgeScreen(vm, onEdit = { nav.navigate("pledge/$it") }) }
+            composable(Tab.PLEDGE.route) {
+                PledgeScreen(vm, onEdit = { nav.navigate("pledge/$it") }, onAdd = { nav.navigate(PLEDGE_PICK_ROUTE) })
+            }
+            // 新增質押：先選股票，再進質押設定
+            composable(PLEDGE_PICK_ROUTE) {
+                PledgePickScreen(
+                    vm,
+                    onPick = { symbol -> nav.navigate("pledge/0?symbol=${Uri.encode(symbol)}") },
+                    onBack = { nav.popBackStack() },
+                )
+            }
             composable(
-                "pledge/{id}",
-                arguments = listOf(navArgument("id") { type = NavType.LongType }),
+                "pledge/{id}?symbol={symbol}",
+                arguments = listOf(
+                    navArgument("id") { type = NavType.LongType },
+                    navArgument("symbol") { type = NavType.StringType; defaultValue = "" },
+                ),
             ) { entry ->
                 PledgeEditScreen(
                     vm = vm,
                     pledgeId = entry.arguments?.getLong("id") ?: 0,
-                    onDone = { nav.popBackStack() },
+                    initialSymbol = entry.arguments?.getString("symbol").orEmpty(),
+                    onBack = { nav.popBackStack() },
+                    // 完成後回到質押頁（新增時中間還有選擇清單）
+                    onDone = { if (!nav.popBackStack(Tab.PLEDGE.route, inclusive = false)) nav.popBackStack() },
                 )
             }
             composable(Tab.MONTHLY.route) { MonthlyReturnScreen(vm) }

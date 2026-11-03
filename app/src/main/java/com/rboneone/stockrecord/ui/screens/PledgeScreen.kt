@@ -57,7 +57,7 @@ private fun twd(v: Double) = formatAmount(Market.TW, v)
 private fun ratioText(r: Double?) = r?.let { "%.1f%%".format(it) } ?: "--"
 
 @Composable
-fun PledgeScreen(vm: AppViewModel, onEdit: (Long) -> Unit) {
+fun PledgeScreen(vm: AppViewModel, onEdit: (Long) -> Unit, onAdd: () -> Unit) {
     val view by vm.pledgeView.collectAsStateWithLifecycle()
     val includeLeveraged by vm.pledgeIncludeLeveraged.collectAsStateWithLifecycle()
     // 收合的月份（yyyy-MM），預設全部展開
@@ -120,7 +120,7 @@ fun PledgeScreen(vm: AppViewModel, onEdit: (Long) -> Unit) {
             }
         }
         ExtendedFloatingActionButton(
-            onClick = { onEdit(0) },
+            onClick = onAdd,
             icon = { Icon(Icons.Filled.Add, contentDescription = null) },
             text = { Text("新增質押") },
             modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp),

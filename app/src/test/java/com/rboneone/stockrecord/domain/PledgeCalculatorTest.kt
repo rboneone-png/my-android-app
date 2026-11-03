@@ -108,4 +108,70 @@ class PledgeCalculatorTest {
         val list = listOf(Pledge(1, "9999", "未知", 1000.0, 100_000.0, 2.0, 0))
         assertNull(PledgeCalculator.build(list, quotes, portfolio = null).months.single().ratio)
     }
+
+    @Test
+    fun pledgeableShares_oddLotsDroppedAndPledgedSubtracted() {
+        assertEquals(23_000.0, PledgeCalculator.pledgeableShares(23_211.0, 0.0), 0.0)
+        assertEquals(0.0, PledgeCalculator.pledgeableShares(999.0, 0.0), 0.0)
+        assertEquals(1_000.0, PledgeCalculator.pledgeableShares(1_000.0, 0.0), 0.0)
+        // 減除已質押：10,500 − 9,000 = 1,500 → 1,000；10,500 − 9,600 = 900 → 0
+        assertEquals(1_000.0, PledgeCalculator.pledgeableShares(10_500.0, 9_000.0), 0.0)
+        assertEquals(0.0, PledgeCalculator.pledgeableShares(10_500.0, 9_600.0), 0.0)
+        assertEquals(0.0, PledgeCalculator.pledgeableShares(1_000.0, 2_000.0), 0.0)
+    }
+
+    private fun position(symbol: String, shares: Double, market: Market = Market.TW) =
+        Valuation.position(
+            Holding(market, symbol, symbol, shares, shares * 10, 0.0),
+            quotes[market to symbol], symbol, FeeSettings(),
+        )
+
+    @Test
+    fun candidates_filtersAndRounds() {
+        val positions = listOf(
+            position("2330", 23_211.0),     // → 23,000
+            position("0050", 900.0),        // 不足 1 張，排除
+            position("00631L", 5_000.0),    // 正二
+            position("2884", 10_500.0),     // 已質押 9,600 → 900，排除
+            position("AAPL", 100_000.0, Market.US),  // 美股不列入
+        )
+        val view = PortfolioView(positions, emptyList(), null)
+        val pledged = listOf(Pledge(1, "2884", "玉山金", 9_600.0, 500_000.0, 2.0, 0))
+        val cats = mapOf((Market.TW to "00631L") to AssetCategory.LEVERAGED_2X)
+        val all = PledgeCalculator.candidates(pledged, quotes + mapOf((Market.TW to "00631L") to quote("00631L", 33.0)), view, cats)
+        assertEquals(listOf("00631L", "2330"), all.map { it.symbol })
+        val tsmc = all.single { it.symbol == "2330" }
+        assertEquals(23_000.0, tsmc.shares, 0.0)
+        assertEquals(2400.0, tsmc.price!!, 0.0)
+        assertEquals(23_000 * 2400.0, tsmc.marketValue!!, 0.0)
+        assertEquals(true, all.single { it.symbol == "00631L" }.leveraged)
+        assertEquals(false, tsmc.leveraged)
+    }
+
+    @Test
+    fun amountMustBeMultipleOfThousand() {
+        assertNull(PledgeCalculator.amountError(5_000.0))
+        assertNull(PledgeCalculator.amountError(1_234_000.0))
+        listOf(5_100.0, 5_010.0, 5_001.0, 5_122.0, 500.0, 5_000.5).forEach {
+            assertEquals("$it", true, PledgeCalculator.amountError(it) != null)
+        }
+        assertEquals(true, PledgeCalculator.amountError(null) != null)
+        assertEquals(true, PledgeCalculator.amountError(0.0) != null)
+        assertEquals(true, PledgeCalculator.amountError(-1_000.0) != null)
+    }
+
+    @Test
+    fun ltv_maxSixtyPercent() {
+        assertEquals(50.0, PledgeCalculator.ltvPct(1_000_000.0, 2_000_000.0)!!, 1e-9)
+        assertNull(PledgeCalculator.ltvPct(1_000_000.0, null))
+        assertNull(PledgeCalculator.ltvPct(1_000_000.0, 0.0))
+        assertEquals(false, PledgeCalculator.exceedsMaxLtv(60.0))
+        assertEquals(false, PledgeCalculator.exceedsMaxLtv(59.99))
+        assertEquals(true, PledgeCalculator.exceedsMaxLtv(60.01))
+        // 顯示為 60.00% 的不算超過
+        assertEquals(false, PledgeCalculator.exceedsMaxLtv(60.004))
+        // 可質押市值 1,000,000 → 最高可借 600,000；601,000 超過
+        assertEquals(false, PledgeCalculator.exceedsMaxLtv(PledgeCalculator.ltvPct(600_000.0, 1_000_000.0)!!))
+        assertEquals(true, PledgeCalculator.exceedsMaxLtv(PledgeCalculator.ltvPct(601_000.0, 1_000_000.0)!!))
+    }
 }
