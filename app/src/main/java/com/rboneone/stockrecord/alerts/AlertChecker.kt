@@ -78,14 +78,9 @@ class AlertChecker(private val app: StockApp) {
     }
 
     companion object {
-        fun zone(market: Market): ZoneId = when (market) {
-            Market.TW -> ZoneId.of("Asia/Taipei")
-            Market.US -> ZoneId.of("America/New_York")
-        }
+        fun zone(market: Market): ZoneId = Quote.zone(market)
 
         /** 報價所屬的交易日（交易所當地日期） */
-        fun tradingDay(q: Quote): Long =
-            if (q.marketTime > 0) Instant.ofEpochSecond(q.marketTime).atZone(zone(q.market)).toLocalDate().toEpochDay()
-            else LocalDate.now(zone(q.market)).toEpochDay()
+        fun tradingDay(q: Quote): Long = q.tradingDay()
     }
 }

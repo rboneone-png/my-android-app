@@ -1,8 +1,10 @@
 package com.rboneone.stockrecord.domain
 
+import com.rboneone.stockrecord.data.Dividend
 import com.rboneone.stockrecord.data.Market
 import com.rboneone.stockrecord.data.Quote
 import com.rboneone.stockrecord.data.TaxType
+import com.rboneone.stockrecord.data.Trade
 
 /** 單一持股加上即時報價後的狀態 */
 data class Position(
@@ -90,6 +92,9 @@ object Valuation {
         quotes: Map<Pair<Market, String>, Quote>,
         names: Map<Pair<Market, String>, String>,
         settings: FeeSettings,
+        /** 有交易紀錄時，持股日損益與月報酬同一算法（含當天買賣與股利）；沒有則只看漲跌 */
+        trades: List<Trade> = emptyList(),
+        dividends: List<Dividend> = emptyList(),
     ): PortfolioView {
         val positions = holdings.map {
             val key = it.market to it.symbol
@@ -99,6 +104,15 @@ object Valuation {
             val inMarket = positions.filter { it.holding.market == market }
             if (inMarket.isEmpty()) return@mapNotNull null
             val open = inMarket.filter { it.holding.isOpen }
+            val dayPnl = if (trades.isEmpty()) open.sumOf { it.dayPnl ?: 0.0 } else {
+                val t = trades.filter { it.market == market }
+                val d = dividends.filter { it.market == market }
+                val live = LiveClose.from(
+                    quotes.values.filter { it.market == market },
+                    (t.map { it.symbol } + d.map { it.symbol }).toSet(),
+                )
+                DailyReturns.today(t, d, live)?.pnl ?: 0.0
+            }
             MarketSummary(
                 market = market,
                 cost = open.sumOf { it.holding.totalCost },
@@ -106,7 +120,7 @@ object Valuation {
                 unrealizedPnl = open.sumOf { it.unrealizedPnl ?: 0.0 },
                 realizedPnl = inMarket.sumOf { it.holding.realizedPnl },
                 dividendIncome = inMarket.sumOf { it.holding.dividendIncome },
-                dayPnl = open.sumOf { it.dayPnl ?: 0.0 },
+                dayPnl = dayPnl,
                 totalPnl = open.sumOf { it.totalPnl ?: 0.0 },
                 missingQuotes = open.count { it.quote == null },
             )

@@ -26,7 +26,9 @@ import com.rboneone.stockrecord.domain.MonthIncome
 import com.rboneone.stockrecord.domain.MonthlyIncome
 import com.rboneone.stockrecord.export.ExcelExporter
 import com.rboneone.stockrecord.export.XlsxWriter
+import com.rboneone.stockrecord.domain.Bar
 import com.rboneone.stockrecord.domain.DayReturn
+import com.rboneone.stockrecord.domain.LiveClose
 import com.rboneone.stockrecord.domain.FeeSettings
 import com.rboneone.stockrecord.domain.Holding
 import com.rboneone.stockrecord.domain.PeriodReturn
@@ -104,12 +106,16 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         marketRepository.observeQuotes(),
         marketRepository.observeInfo(),
         settings,
-    ) { holdings, quotes, infos, settings ->
+        combine(trades, dividends) { t, d -> t to d },
+    ) { holdings, quotes, infos, settings, (trades, dividends) ->
         Valuation.build(
             holdings = holdings,
             quotes = quotes.associateBy { it.market to it.symbol },
             names = infos.associate { (it.market to it.symbol) to it.name },
             settings = settings,
+            // 持股日損益與月報酬同一算法：含當天買賣與股利
+            trades = trades,
+            dividends = dividends,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
@@ -205,8 +211,52 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     val month: StateFlow<MonthState> = _month.asStateFlow()
     private var monthJob: Job? = null
 
+    /** 本月資料（交易、歷史日線）；報酬更新時只重算，不重新下載 */
+    private class MonthCtx(
+        val market: Market,
+        val month: YearMonth,
+        val trades: List<Trade>,
+        val dividends: List<Dividend>,
+        val bars: Map<String, List<Bar>>,
+        val from: Long,
+        val to: Long,
+        val error: String?,
+    )
+
+    private var monthCtx: MonthCtx? = null
+
+    /** 用最新的即時報價重算本月報酬（歷史日線有延遲，最新一天以即時報價為準） */
+    private suspend fun publishMonth() {
+        val c = monthCtx ?: return
+        val today = LocalDate.now().toEpochDay()
+        val live = if (c.to >= today) {
+            LiveClose.from(
+                db.marketDao().getQuotes().filter { it.market == c.market },
+                (c.trades.map { it.symbol } + c.dividends.map { it.symbol }).toSet(),
+            )
+        } else emptyMap()
+        val days = DailyReturns.compute(c.trades, c.dividends, c.bars, c.from, c.to, live)
+        // 切換月份期間，不要用舊月份的結果蓋掉畫面
+        if (monthCtx !== c) return
+        _month.value = MonthState(
+            market = c.market,
+            month = c.month,
+            days = days,
+            total = DailyReturns.combine(days),
+            error = c.error,
+        )
+    }
+
+    /** 報價更新後呼叫：重算本月（只有包含今天的月份才需要） */
+    fun refreshMonthLive() {
+        val c = monthCtx ?: return
+        if (c.to < LocalDate.now().toEpochDay()) return
+        viewModelScope.launch { publishMonth() }
+    }
+
     fun loadMonth(market: Market, month: YearMonth) {
         monthJob?.cancel()
+        monthCtx = null
         _month.value = MonthState(market, month, loading = true)
         monthJob = viewModelScope.launch {
             val trades = tradeDao.getAll().filter { it.market == market }
@@ -231,20 +281,17 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 async { s to runCatching { marketRepository.history(market, s, windowStart, to, cacheable) }.getOrNull() }
             }.awaitAll()
             val failed = bars.filter { it.second == null }.map { it.first }
-            val days = DailyReturns.compute(
-                trades.filter { it.symbol in symbols },
-                dividends.filter { it.symbol in symbols },
-                bars.mapNotNull { (s, b) -> b?.let { s to it } }.toMap(),
-                from,
-                to,
-            )
-            _month.value = MonthState(
+            monthCtx = MonthCtx(
                 market = market,
                 month = month,
-                days = days,
-                total = DailyReturns.combine(days),
+                trades = trades.filter { it.symbol in symbols },
+                dividends = dividends.filter { it.symbol in symbols },
+                bars = bars.mapNotNull { (s, b) -> b?.let { s to it } }.toMap(),
+                from = from,
+                to = to,
                 error = if (failed.isEmpty()) null else "無法取得歷史股價：${failed.joinToString("、")}",
             )
+            publishMonth()
         }
     }
 

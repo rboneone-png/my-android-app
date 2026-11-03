@@ -38,7 +38,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.repeatOnLifecycle
+import kotlinx.coroutines.delay
 import com.rboneone.stockrecord.data.Market
 import com.rboneone.stockrecord.domain.DailyReturns
 import com.rboneone.stockrecord.domain.DayReturn
@@ -70,6 +74,22 @@ fun MonthlyReturnScreen(vm: AppViewModel) {
     var mode by rememberSaveable { mutableStateOf(ReturnMode.MONTHLY) }
 
     LaunchedEffect(market, monthText, mode) { if (mode == ReturnMode.MONTHLY) vm.loadMonth(market, month) }
+
+    // 看本月時，依設定秒數更新報價；報價一更新就用即時價重算今天的損益（與持股頁同一份資料）
+    val refreshSeconds by vm.refreshSeconds.collectAsStateWithLifecycle()
+    val quotes by vm.quotes.collectAsStateWithLifecycle()
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    LaunchedEffect(refreshSeconds, mode, monthText) {
+        if (mode != ReturnMode.MONTHLY || month != current) return@LaunchedEffect
+        lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            vm.refreshQuotes(force = false)
+            while (true) {
+                delay(refreshSeconds * 1000L)
+                vm.refreshQuotes(quiet = true)
+            }
+        }
+    }
+    LaunchedEffect(quotes, mode) { if (mode == ReturnMode.MONTHLY) vm.refreshMonthLive() }
 
     Column(Modifier.fillMaxSize()) {
         ScreenTopBar("月報酬")
@@ -150,7 +170,7 @@ fun MonthlyReturnScreen(vm: AppViewModel) {
             }
             Text(
                 "每日損益 = 收盤市值變化 − 買進金額 + 賣出淨收入 + 股利入帳；報酬率以前一交易日市值為基準，" +
-                    "週與月報酬率以每日報酬連乘計算。股價來源 Yahoo Finance 每日收盤價。",
+                    "週與月報酬率以每日報酬連乘計算。今天的損益用即時報價（與持股頁相同），過去的日子用 Yahoo Finance 每日收盤價。",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(vertical = 16.dp),
