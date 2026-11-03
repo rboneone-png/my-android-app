@@ -51,14 +51,14 @@ class AccountingTest {
     @Test
     fun usTradesConvertedAtTodaysRate_roundedPerTrade() {
         val trades = listOf(
-            trade(1, TradeType.BUY, today, 10.0, 250.55, Market.US),    // 2,505.5 美元 × 32.6241 = 81,737.9... → 81,738
+            trade(1, TradeType.BUY, today, 10.0, 250.55, Market.US),    // 2,505.5 美元 × 32.6241 = 81,739.68 → 81,740
             trade(2, TradeType.SELL, today, 3.0, 100.0, Market.US),     // 300 × 32.6241 = 9,787.23 → 9,787
             trade(3, TradeType.SELL, today, 1000.0, 36.4, Market.TW),   // 36,400
         )
         val a = Accounting.dayAccount(emptyList(), trades, emptyList(), 32.6241, today)
-        assertEquals(81_738L, a.buys)
+        assertEquals(81_740L, a.buys)
         assertEquals(9_787L + 36_400L, a.sells)
-        assertEquals(9_787L + 36_400L - 81_738L, a.dayNet)
+        assertEquals(9_787L + 36_400L - 81_740L, a.dayNet)
         assertEquals(32.6241, a.usdTwd!!, 0.0)
         assertFalse(a.usMissingRate)
     }
