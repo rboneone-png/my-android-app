@@ -6,8 +6,8 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
-    entities = [Trade::class, StockInfo::class, Quote::class, Dividend::class, StockCategory::class, PriceAlert::class, Pledge::class, WatchItem::class, HighWatchItem::class],
-    version = 8,
+    entities = [Trade::class, StockInfo::class, Quote::class, Dividend::class, StockCategory::class, PriceAlert::class, Pledge::class, WatchItem::class, HighWatchItem::class, CashFlow::class],
+    version = 9,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -19,6 +19,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun pledgeDao(): PledgeDao
     abstract fun watchDao(): WatchDao
     abstract fun highWatchDao(): HighWatchDao
+    abstract fun cashFlowDao(): CashFlowDao
 
     companion object {
         /** v1 → v2：新增股票資料與報價表，保留原有交易紀錄 */
@@ -99,6 +100,17 @@ abstract class AppDatabase : RoomDatabase() {
                         "`market` TEXT NOT NULL, `symbol` TEXT NOT NULL, `name` TEXT NOT NULL, " +
                         "`position` INTEGER NOT NULL, `highPrice` REAL, " +
                         "`highDate` INTEGER, `highUpdatedAt` INTEGER NOT NULL)"
+                )
+            }
+        }
+
+        /** v8 → v9：新增帳務管理的現金存入／領出表 */
+        val MIGRATION_8_9 = object : Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `cash_flows` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "`market` TEXT NOT NULL, `type` TEXT NOT NULL, `date` INTEGER NOT NULL, " +
+                        "`amount` REAL NOT NULL, `note` TEXT NOT NULL)"
                 )
             }
         }

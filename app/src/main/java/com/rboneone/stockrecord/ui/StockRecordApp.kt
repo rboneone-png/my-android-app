@@ -33,6 +33,10 @@ import com.rboneone.stockrecord.ui.screens.AlertEditScreen
 import com.rboneone.stockrecord.ui.screens.AlertsScreen
 import com.rboneone.stockrecord.ui.screens.AllocationScreen
 import com.rboneone.stockrecord.ui.screens.ChartsScreen
+import com.rboneone.stockrecord.data.CashFlowType
+import com.rboneone.stockrecord.data.Market
+import com.rboneone.stockrecord.ui.screens.AccountingScreen
+import com.rboneone.stockrecord.ui.screens.CashFlowEditScreen
 import com.rboneone.stockrecord.ui.screens.PledgeEditScreen
 import com.rboneone.stockrecord.ui.screens.PledgePickScreen
 import com.rboneone.stockrecord.ui.screens.PledgeScreen
@@ -66,6 +70,7 @@ private enum class Tab(val route: String, val label: String, val icon: ImageVect
 }
 
 private const val RECORDS_ROUTE = "records"
+private const val ACCOUNTING_ROUTE = "accounting"
 private const val PLEDGE_PICK_ROUTE = "pledge-pick"
 private fun tradeRoute(id: Long = 0) = "trade/$id"
 private fun dividendRoute(id: Long = 0) = "dividend/$id"
@@ -151,6 +156,32 @@ fun StockRecordApp(vm: AppViewModel) {
                     },
                     onOpenCharts = { nav.navigate("charts") },
                     onOpenRecords = { nav.navigate(RECORDS_ROUTE) },
+                    onOpenAccounting = { nav.navigate(ACCOUNTING_ROUTE) },
+                )
+            }
+            // 帳務管理由持股總覽上方的按鈕進入
+            composable(ACCOUNTING_ROUTE) {
+                AccountingScreen(
+                    vm,
+                    onBack = { nav.popBackStack() },
+                    onAdd = { type, market -> nav.navigate("cash/0?type=${type.name}&market=${market.name}") },
+                    onEdit = { nav.navigate("cash/$it") },
+                )
+            }
+            composable(
+                "cash/{id}?type={type}&market={market}",
+                arguments = listOf(
+                    navArgument("id") { type = NavType.LongType },
+                    navArgument("type") { type = NavType.StringType; defaultValue = CashFlowType.DEPOSIT.name },
+                    navArgument("market") { type = NavType.StringType; defaultValue = Market.TW.name },
+                ),
+            ) { entry ->
+                CashFlowEditScreen(
+                    vm = vm,
+                    flowId = entry.arguments?.getLong("id") ?: 0,
+                    initialType = CashFlowType.valueOf(entry.arguments?.getString("type") ?: CashFlowType.DEPOSIT.name),
+                    initialMarket = Market.valueOf(entry.arguments?.getString("market") ?: Market.TW.name),
+                    onDone = { nav.popBackStack() },
                 )
             }
             composable("charts") { ChartsScreen(vm, onBack = { nav.popBackStack() }) }

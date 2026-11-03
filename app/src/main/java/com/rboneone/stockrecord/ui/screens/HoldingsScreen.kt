@@ -83,6 +83,7 @@ fun HoldingsScreen(
     onCategorize: () -> Unit,
     onOpenCharts: () -> Unit,
     onOpenRecords: () -> Unit,
+    onOpenAccounting: () -> Unit,
 ) {
     val portfolio by vm.portfolio.collectAsStateWithLifecycle()
     val refreshing by vm.refreshing.collectAsStateWithLifecycle()
@@ -116,6 +117,7 @@ fun HoldingsScreen(
         ScreenTopBar(
             "持股總覽",
             actions = {
+                TextButton(onClick = onOpenAccounting) { Text("帳務") }
                 TextButton(onClick = onOpenRecords) { Text("紀錄") }
                 TextButton(onClick = { hidden = !hidden }) { Text(if (hidden) "顯示" else "隱藏") }
                 IconButton(onClick = onOpenCharts) {

@@ -2,6 +2,8 @@ package com.rboneone.stockrecord.sync
 
 import com.rboneone.stockrecord.data.AlertType
 import com.rboneone.stockrecord.data.AssetCategory
+import com.rboneone.stockrecord.data.CashFlow
+import com.rboneone.stockrecord.data.CashFlowType
 import com.rboneone.stockrecord.data.Dividend
 import com.rboneone.stockrecord.data.HighWatchItem
 import com.rboneone.stockrecord.data.Market
@@ -41,6 +43,10 @@ class BackupTest {
             holdingOrder = mapOf(Market.TW to listOf("2884", "2330"), Market.US to listOf("VOO")),
             watchlist = listOf(WatchItem(3, Market.TW, "2454", "聯發科", 0), WatchItem(4, Market.US, "NVDA", "NVIDIA", 1)),
             highWatch = listOf(HighWatchItem(5, Market.TW, "0050", "元大台灣50", 0), HighWatchItem(6, Market.US, "QQQ", "Invesco QQQ", 1)),
+            cashFlows = listOf(
+                CashFlow(1, Market.TW, CashFlowType.DEPOSIT, 20_100, 500_000.0, "薪轉"),
+                CashFlow(2, Market.US, CashFlowType.WITHDRAW, 20_101, 1_250.5),
+            ),
         )
         assertEquals(data, Backup.parse(Backup.serialize(data)))
     }
@@ -52,6 +58,7 @@ class BackupTest {
         assertEquals(emptyList<StockCategory>(), data.categories)
         assertEquals(0.0, data.cash, 0.0)
         assertEquals(emptyList<HighWatchItem>(), data.highWatch)
+        assertEquals(emptyList<CashFlow>(), data.cashFlows)
     }
 
     @Test

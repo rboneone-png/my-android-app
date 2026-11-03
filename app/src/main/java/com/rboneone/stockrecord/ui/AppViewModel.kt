@@ -7,6 +7,7 @@ import com.rboneone.stockrecord.StockApp
 import com.rboneone.stockrecord.auth.Account
 import com.rboneone.stockrecord.auth.AuthMethod
 import com.rboneone.stockrecord.data.AssetCategory
+import com.rboneone.stockrecord.data.CashFlow
 import com.rboneone.stockrecord.data.Dividend
 import com.rboneone.stockrecord.data.LookupResult
 import com.rboneone.stockrecord.data.Market
@@ -85,6 +86,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val pledgeDao = db.pledgeDao()
     private val watchDao = db.watchDao()
     private val highWatchDao = db.highWatchDao()
+    private val cashFlowDao = db.cashFlowDao()
     private val settingsRepository = app.settings(userId)
     private val marketRepository = app.marketRepository(userId)
 
@@ -495,6 +497,21 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun reorderHighWatch(ids: List<Long>) {
         viewModelScope.launch { highWatchDao.reorder(ids) }
+    }
+
+    // ---- 帳務管理（現金存入／領出） ----
+
+    val cashFlows: StateFlow<List<CashFlow>> = cashFlowDao.observeAll()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    suspend fun getCashFlow(id: Long): CashFlow? = cashFlowDao.get(id)
+
+    fun saveCashFlow(flow: CashFlow) {
+        viewModelScope.launch { cashFlowDao.upsert(flow) }
+    }
+
+    fun deleteCashFlow(flow: CashFlow) {
+        viewModelScope.launch { cashFlowDao.delete(flow) }
     }
 
     // ---- 圖表與匯出 ----

@@ -314,7 +314,7 @@ private fun ReadOnlyField(
 
 /** 年、月、日三個下拉選單；改月份時日期自動不超過該月天數 */
 @Composable
-private fun DateDropdowns(epochDay: Long, onChange: (Long) -> Unit) {
+internal fun DateDropdowns(epochDay: Long, onChange: (Long) -> Unit) {
     val current = LocalDate.ofEpochDay(epochDay)
     val thisYear = LocalDate.now().year
     val years = (thisYear - 10..thisYear + 1).toList().reversed()
