@@ -1,6 +1,7 @@
 package com.rboneone.stockrecord.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,7 +18,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -32,6 +35,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -69,6 +73,11 @@ private fun pctText(v: Double?) = v?.let { "%.1f%%".format(it) } ?: "--"
 fun AllocationScreen(vm: AppViewModel) {
     val allocation by vm.allocation.collectAsStateWithLifecycle()
     var editCash by remember { mutableStateOf(false) }
+    // 已展開的群組；預設全部收合
+    var expandedGroups by rememberSaveable { mutableStateOf(setOf<String>()) }
+    fun toggle(key: String) {
+        expandedGroups = if (key in expandedGroups) expandedGroups - key else expandedGroups + key
+    }
 
     Column(Modifier.fillMaxSize()) {
         ScreenTopBar("資產配置")
@@ -87,20 +96,33 @@ fun AllocationScreen(vm: AppViewModel) {
                         "尚未分類（${uncategorized.size}）",
                         "請為下列持股選擇分類，未分類的持股不會計入總資產",
                         MaterialTheme.colorScheme.error,
+                        expanded = "uncat" in expandedGroups,
+                        total = null,
+                        onToggle = { toggle("uncat") },
                     )
                 }
-                items(uncategorized, key = { "u-${it.position.holding.market}-${it.position.holding.symbol}" }) {
-                    ItemCard(it, highlight = true) { c -> vm.setCategory(it.position.holding.market, it.position.holding.symbol, c) }
+                if ("uncat" in expandedGroups) {
+                    items(uncategorized, key = { "u-${it.position.holding.market}-${it.position.holding.symbol}" }) {
+                        ItemCard(it, highlight = true) { c -> vm.setCategory(it.position.holding.market, it.position.holding.symbol, c) }
+                    }
                 }
             }
             AssetCategory.entries.forEach { category ->
                 val list = a.items.filter { it.category == category }
                 if (list.isEmpty()) return@forEach
+                val groupKey = "cat-${category.name}"
                 item(key = "header-$category") {
-                    GroupHeader("${category.label}（${list.size}）", null, category.color())
+                    GroupHeader(
+                        "${category.label}（${list.size}）", null, category.color(),
+                        expanded = groupKey in expandedGroups,
+                        total = list.sumOf { it.valueTwd ?: 0.0 },
+                        onToggle = { toggle(groupKey) },
+                    )
                 }
-                items(list, key = { "c-${it.position.holding.market}-${it.position.holding.symbol}" }) {
-                    ItemCard(it, highlight = false) { c -> vm.setCategory(it.position.holding.market, it.position.holding.symbol, c) }
+                if (groupKey in expandedGroups) {
+                    items(list, key = { "c-${it.position.holding.market}-${it.position.holding.symbol}" }) {
+                        ItemCard(it, highlight = false) { c -> vm.setCategory(it.position.holding.market, it.position.holding.symbol, c) }
+                    }
                 }
             }
             if (a.items.isEmpty()) {
@@ -218,11 +240,31 @@ private fun AllocationRow(
 }
 
 @Composable
-private fun GroupHeader(title: String, subtitle: String?, color: Color) {
-    Column(Modifier.padding(top = 8.dp)) {
+private fun GroupHeader(
+    title: String,
+    subtitle: String?,
+    color: Color,
+    expanded: Boolean,
+    /** 群組市值小計（台幣）；沒有時不顯示 */
+    total: Double?,
+    onToggle: () -> Unit,
+) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clickable(onClickLabel = if (expanded) "收合" else "展開", onClick = onToggle)
+            .padding(top = 8.dp),
+    ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(width = 4.dp, height = 18.dp).background(color))
-            Text(title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(start = 8.dp))
+            Text(title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(start = 8.dp).weight(1f))
+            total?.let {
+                Text(twd(it), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Icon(
+                if (expanded) Icons.Filled.KeyboardArrowDown else Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = if (expanded) "收合" else "展開",
+            )
         }
         subtitle?.let {
             Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
