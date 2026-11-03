@@ -174,4 +174,33 @@ class PledgeCalculatorTest {
         assertEquals(false, PledgeCalculator.exceedsMaxLtv(PledgeCalculator.ltvPct(600_000.0, 1_000_000.0)!!))
         assertEquals(true, PledgeCalculator.exceedsMaxLtv(PledgeCalculator.ltvPct(601_000.0, 1_000_000.0)!!))
     }
+
+    @Test
+    fun sharesMustBeLotsAndWithinAvailable() {
+        assertNull(PledgeCalculator.sharesError(1_000.0, 23_000.0))
+        assertNull(PledgeCalculator.sharesError(23_000.0, 23_000.0))
+        listOf(500.0, 1_500.0, 23_001.0, 999.0).forEach {
+            assertEquals("$it", true, PledgeCalculator.sharesError(it, 50_000.0) != null)
+        }
+        assertEquals(true, PledgeCalculator.sharesError(24_000.0, 23_000.0)!!.contains("23,000"))
+        assertEquals(true, PledgeCalculator.sharesError(null, 23_000.0) != null)
+        assertEquals(true, PledgeCalculator.sharesError(0.0, 23_000.0) != null)
+        assertEquals(true, PledgeCalculator.sharesError(-1_000.0, 23_000.0) != null)
+    }
+
+    @Test
+    fun maintenance_minimum166() {
+        // 1,000 股 × 2,400 ÷ 1,000,000 = 240%
+        assertEquals(240.0, PledgeCalculator.maintenancePct(1_000.0, 2_400.0, 1_000_000.0)!!, 1e-9)
+        assertNull(PledgeCalculator.maintenancePct(1_000.0, null, 1_000_000.0))
+        assertNull(PledgeCalculator.maintenancePct(1_000.0, 2_400.0, 0.0))
+        assertNull(PledgeCalculator.maintenancePct(0.0, 2_400.0, 1_000_000.0))
+        assertEquals(false, PledgeCalculator.belowMinMaintenance(166.0))
+        assertEquals(false, PledgeCalculator.belowMinMaintenance(165.996))   // 顯示 166.00%
+        assertEquals(true, PledgeCalculator.belowMinMaintenance(165.99))
+        assertEquals(false, PledgeCalculator.belowMinMaintenance(240.0))
+        // 1,000 股 × 100 元 = 100,000：最多借 60,000（166.67%），借 61,000 為 163.9% 不行
+        assertEquals(false, PledgeCalculator.belowMinMaintenance(PledgeCalculator.maintenancePct(1_000.0, 100.0, 60_000.0)!!))
+        assertEquals(true, PledgeCalculator.belowMinMaintenance(PledgeCalculator.maintenancePct(1_000.0, 100.0, 61_000.0)!!))
+    }
 }

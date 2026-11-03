@@ -85,6 +85,9 @@ object PledgeCalculator {
     /** 質押金額的最小單位（元） */
     const val AMOUNT_UNIT = 1000.0
 
+    /** 新增質押時維持率的下限（%），低於無法新增 */
+    const val MIN_MAINTENANCE_PCT = 166.0
+
     /** 可質押股數：（持股 − 已質押股數）不足 1000 股的零股不計，例如 23,211 股只算 23,000 股 */
     fun pledgeableShares(held: Double, pledged: Double): Double =
         maxOf(0.0, Math.floor((held - pledged) / LOT + 1e-9) * LOT)
@@ -124,6 +127,23 @@ object PledgeCalculator {
             "質押金額須為 1,000 的倍數（如 5,000、12,000），請重新輸入"
         else -> null
     }
+
+    /** 質押股數必須是 1000 股的倍數，且不超過可質押股數；合法時回傳 null，否則回傳說明 */
+    fun sharesError(shares: Double?, available: Double): String? = when {
+        shares == null -> "請輸入質押股數"
+        shares <= 0 -> "質押股數需大於 0"
+        shares % LOT != 0.0 -> "質押股數須為 1,000 股的倍數（如 1,000、5,000），請重新輸入"
+        shares > available -> "質押股數不可超過可質押股數 %,.0f".format(available)
+        else -> null
+    }
+
+    /** 維持率 = 質押股數 × 股價 ÷ 質押金額 × 100%；缺資料時為 null */
+    fun maintenancePct(shares: Double, price: Double?, amount: Double): Double? =
+        if (price != null && price > 0 && shares > 0 && amount > 0) shares * price / amount * 100 else null
+
+    /** 維持率是否低於下限（以顯示的小數兩位判斷，剛好 166.00% 可以） */
+    fun belowMinMaintenance(maintenancePct: Double): Boolean =
+        Math.round(maintenancePct * 100) / 100.0 < MIN_MAINTENANCE_PCT
 
     /** 質押率 = 質押金額 ÷ 可質押市值 × 100%；沒有市值時為 null */
     fun ltvPct(amount: Double, marketValue: Double?): Double? =

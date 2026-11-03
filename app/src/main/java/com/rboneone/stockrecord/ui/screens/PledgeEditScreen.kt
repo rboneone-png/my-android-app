@@ -73,6 +73,7 @@ fun PledgeEditScreen(
     var loaded by rememberSaveable { mutableStateOf(isNew) }
     var symbol by rememberSaveable { mutableStateOf(initialSymbol) }
     var name by rememberSaveable { mutableStateOf("") }
+    var sharesText by rememberSaveable { mutableStateOf("") }
     var amountText by rememberSaveable { mutableStateOf("") }
     var rateText by rememberSaveable { mutableStateOf("") }
     var date by rememberSaveable { mutableLongStateOf(LocalDate.now().toEpochDay()) }
@@ -87,6 +88,7 @@ fun PledgeEditScreen(
         original = p
         if (!loaded) {
             symbol = p.symbol; name = p.name
+            sharesText = plainNumber(p.shares)
             amountText = plainNumber(p.amount); rateText = plainNumber(p.ratePct); date = p.date
             loaded = true
         }
@@ -101,27 +103,44 @@ fun PledgeEditScreen(
     LaunchedEffect(candidate?.name) { if (isNew && name.isBlank()) candidate?.name?.let { name = it } }
 
     val price = quotes[Market.TW to sym]?.price
-    // 新增：可質押股數取自選擇清單的算法；編輯：沿用已儲存的質押股數
-    val shares: Double? = if (isNew) candidate?.takeUnless { leveragedHidden }?.shares else original?.shares
-    val marketValue = if (price != null && shares != null) price * shares else null
+    // 可質押股數：新增取自選擇清單的算法；編輯時再加回這筆自己已質押的股數（至少不低於原本的股數）
+    val available: Double? = if (isNew) {
+        candidate?.takeUnless { leveragedHidden }?.shares
+    } else original?.let { o ->
+        maxOf(o.shares, Math.floor(((candidate?.shares ?: 0.0) + o.shares) / PledgeCalculator.LOT) * PledgeCalculator.LOT)
+    }
+    val marketValue = if (price != null && available != null) price * available else null
 
+    // 新增時，選到股票後先帶入全部可質押股數，使用者可以改小
+    LaunchedEffect(isNew, candidate?.symbol, available) {
+        if (isNew) sharesText = available?.let { plainNumber(it) }.orEmpty()
+    }
+
+    val pledgeShares = sharesText.toAmountOrNull()
     val amount = amountText.toAmountOrNull()
     val rate = rateText.toAmountOrNull()
+    val sharesError = if (sharesText.isBlank() || available == null) null
+    else PledgeCalculator.sharesError(pledgeShares, available)
     val amountError = if (amountText.isBlank()) null else PledgeCalculator.amountError(amount)
     val ltv = if (amount != null && amount > 0) PledgeCalculator.ltvPct(amount, marketValue) else null
-    // 編輯既有質押時，只在金額被改動時才檢查上限（股價下跌造成的超標不擋住修改日期等）
-    val capApplies = isNew || amount != original?.amount
+    // 股數不合法（不是千股倍數、超過可質押股數）時不算維持率，避免顯示誤導的數字
+    val maintenance = if (pledgeShares != null && amount != null && sharesError == null && sharesText.isNotBlank())
+        PledgeCalculator.maintenancePct(pledgeShares, price, amount) else null
+    // 編輯既有質押時，只在股數或金額被改動時才檢查上限（股價下跌造成的超標不擋住修改日期等）
+    val capApplies = isNew || amount != original?.amount || pledgeShares != original?.shares
     val overLimit = ltv != null && capApplies && PledgeCalculator.exceedsMaxLtv(ltv)
+    val lowMaintenance = maintenance != null && capApplies && PledgeCalculator.belowMinMaintenance(maintenance)
 
     fun save() {
         error = when {
             sym.isEmpty() -> "請輸入股票代碼"
             leveragedHidden -> "「包含正二」已關閉，正二不列入可質押，請先開啟"
-            shares == null || shares <= 0 -> "這檔股票沒有可質押股數：需持有 1,000 股以上，已質押的股數會扣除"
+            available == null || available <= 0 -> "這檔股票沒有可質押股數：需持有 1,000 股以上，已質押的股數會扣除"
             price == null -> "尚未取得股價，請稍後再試"
-            else -> PledgeCalculator.amountError(amount)
-        } ?: when {
+            else -> PledgeCalculator.sharesError(pledgeShares, available)
+        } ?: PledgeCalculator.amountError(amount) ?: when {
             rate == null || rate < 0 -> "請輸入質押利率（%）"
+            lowMaintenance -> "維持率 %.2f%% 低於 %.0f%%，無法新增，請降低質押金額或增加質押股數".format(maintenance, PledgeCalculator.MIN_MAINTENANCE_PCT)
             overLimit -> "質押率 %.2f%% 超過上限 %.0f%%，無法新增，請降低質押金額".format(ltv, PledgeCalculator.MAX_LTV_PCT)
             else -> null
         }
@@ -131,7 +150,7 @@ fun PledgeEditScreen(
                 id = pledgeId,
                 symbol = sym,
                 name = name.trim().ifEmpty { sym },
-                shares = shares!!,
+                shares = pledgeShares!!,
                 amount = amount!!,
                 ratePct = rate!!,
                 date = date,
@@ -177,17 +196,30 @@ fun PledgeEditScreen(
                 supporting = if (sym.isNotEmpty() && price == null) "尚未取得股價，可到持股總覽按更新" else null)
             // D. 可質押股數、E. 可質押市值
             ReadOnlyField(
-                "可質押股數", shares?.let { formatShares(it) } ?: "--",
+                "可質押股數", available?.let { formatShares(it) } ?: "--",
                 supporting = when {
                     sym.isEmpty() -> null
                     leveragedHidden -> "「包含正二」已關閉，正二不列入可質押"
-                    shares == null -> "沒有可質押股數：需持有 1,000 股以上（零股不計，已質押的股數會扣除）"
+                    available == null -> "沒有可質押股數：需持有 1,000 股以上（零股不計，已質押的股數會扣除）"
                     else -> null
                 },
-                isError = sym.isNotEmpty() && shares == null,
+                isError = sym.isNotEmpty() && available == null,
             )
             ReadOnlyField("可質押市值", marketValue?.let { formatAmount(Market.TW, it) } ?: "--")
 
+            // 質押股數：使用者輸入，千股為單位，不可超過可質押股數
+            OutlinedTextField(
+                value = sharesText,
+                onValueChange = { sharesText = it; error = null },
+                label = { Text("質押股數（股）") },
+                singleLine = true,
+                isError = sharesError != null,
+                supportingText = {
+                    Text(sharesError ?: "須為 1,000 股的倍數，最多 ${available?.let { formatShares(it) } ?: "--"} 股")
+                },
+                keyboardOptions = KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
+                modifier = Modifier.fillMaxWidth(),
+            )
             // F. 質押金額：使用者輸入，千元為單位
             OutlinedTextField(
                 value = amountText,
@@ -200,6 +232,15 @@ fun PledgeEditScreen(
                 },
                 keyboardOptions = KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
                 modifier = Modifier.fillMaxWidth(),
+            )
+            // 維持率 = 質押股數 × 股價 ÷ 質押金額，最低 166%
+            ReadOnlyField(
+                "維持率（質押股數 × 股價 ÷ 質押金額）",
+                maintenance?.let { "%.2f%%".format(it) } ?: "--",
+                supporting = if (lowMaintenance) "低於下限 ${PledgeCalculator.MIN_MAINTENANCE_PCT.toInt()}%，無法新增，請降低質押金額或增加質押股數"
+                else "最低 ${PledgeCalculator.MIN_MAINTENANCE_PCT.toInt()}%",
+                isError = lowMaintenance,
+                valueColor = if (lowMaintenance) ProfitRed else Color.Unspecified,
             )
             // G. 質押利率（%）
             NumberField(
@@ -227,7 +268,7 @@ fun PledgeEditScreen(
             DateDropdowns(date) { date = it }
 
             error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-            Button(onClick = ::save, enabled = !overLimit, modifier = Modifier.fillMaxWidth()) {
+            Button(onClick = ::save, enabled = !overLimit && !lowMaintenance, modifier = Modifier.fillMaxWidth()) {
                 Text(if (isNew) "新增" else "儲存")
             }
         }
