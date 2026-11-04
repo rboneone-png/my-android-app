@@ -20,6 +20,9 @@ import java.util.UUID
  * 透過 Google Drive 的「App 專用資料夾」（appDataFolder）存放備份。
  * 這個資料夾在 Drive 網頁上看不到，只有這個 App 能讀寫。
  */
+/** Google 授權失效（例如測試中的應用程式約 7 天過期），必須使用者重新連結 */
+class NeedRelinkException(message: String = "Google 授權已失效，請到設定頁重新連結 Google 帳號") : IOException(message)
+
 object GoogleDrive {
     private const val SCOPE = "https://www.googleapis.com/auth/drive.appdata"
     private const val API = "https://www.googleapis.com/drive/v3/files"
@@ -38,6 +41,36 @@ object GoogleDrive {
         val result = authorize(context)
         return if (result.hasResolution()) null else result.accessToken
     }
+
+    /** 取得 token 並執行 block；遇到 401（token 過期）時重新取一次再試，仍失敗才要求重新連結 */
+    suspend fun <T> withToken(context: Context, block: suspend (String) -> T): T {
+        val first = runCatching { token(context) }.getOrElse { throw friendly(it) } ?: throw NeedRelinkException()
+        try {
+            return block(first)
+        } catch (e: HttpException) {
+            if (e.code != 401 && e.code != 403) throw e
+        }
+        val second = runCatching { token(context) }.getOrElse { throw friendly(it) } ?: throw NeedRelinkException()
+        try {
+            return block(second)
+        } catch (e: HttpException) {
+            if (e.code == 401) throw NeedRelinkException()
+            throw e
+        }
+    }
+
+    /** 把授權錯誤翻成看得懂的說明 */
+    fun friendly(e: Throwable): Throwable {
+        val code = (e as? com.google.android.gms.common.api.ApiException)?.statusCode
+        return when (code) {
+            10 -> IOException("Google 不認得這個 App（錯誤 10）：請確認 Google Cloud 的 Android 用戶端套件名稱與 SHA-1 正確")
+            7, 8 -> IOException("連不上 Google 服務，請檢查網路後再試")
+            16, 12501 -> NeedRelinkException()
+            else -> e
+        }
+    }
+
+    class HttpException(val code: Int, message: String) : IOException(message)
 
     suspend fun upload(token: String, fileName: String, content: String) = withContext(Dispatchers.IO) {
         val old = findFileIds(token, fileName)
@@ -88,7 +121,7 @@ object GoogleDrive {
             val code = conn.responseCode
             if (code !in 200..299) {
                 val err = conn.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
-                throw IOException("Google Drive 回應 $code ${err.take(200)}")
+                throw HttpException(code, "Google Drive 回應 $code ${err.take(200)}")
             }
             return conn.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
         } finally {

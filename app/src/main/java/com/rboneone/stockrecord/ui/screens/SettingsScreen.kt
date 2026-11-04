@@ -200,7 +200,7 @@ private fun SyncSection(vm: AppViewModel) {
                     }
                 }
                 .onFailure {
-                    vm.onGoogleLinkFailed("${it.message}（請確認已完成 Google Cloud 設定）")
+                    vm.onGoogleLinkFailed(GoogleDrive.friendly(it).message ?: "未知錯誤")
                 }
         }
     }

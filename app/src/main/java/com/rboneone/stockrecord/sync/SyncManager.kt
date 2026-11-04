@@ -44,14 +44,14 @@ class SyncManager(private val app: StockApp) {
 
     /** 把手機資料上傳到 Google 雲端 */
     suspend fun backup(userId: String): Result<Unit> = runCatching {
-        val token = GoogleDrive.token(app) ?: error("需要重新連結 Google 帳號")
-        GoogleDrive.upload(token, fileName(userId), Backup.serialize(collect(userId)))
+        val content = Backup.serialize(collect(userId))
+        GoogleDrive.withToken(app) { GoogleDrive.upload(it, fileName(userId), content) }
     }.also { record(userId, it.exceptionOrNull(), "備份") }
 
     /** 用雲端備份取代手機資料，回傳還原的筆數 */
     suspend fun restore(userId: String): Result<Int> = runCatching {
-        val token = GoogleDrive.token(app) ?: error("需要重新連結 Google 帳號")
-        val json = GoogleDrive.download(token, fileName(userId)) ?: error("雲端還沒有這個帳號的備份")
+        val json = GoogleDrive.withToken(app) { GoogleDrive.download(it, fileName(userId)) }
+            ?: error("雲端還沒有這個帳號的備份")
         apply(userId, Backup.parse(json))
     }.also { record(userId, it.exceptionOrNull(), "還原") }
 
@@ -111,6 +111,9 @@ class SyncManager(private val app: StockApp) {
     private fun record(userId: String, error: Throwable?, action: String) {
         app.settings(userId).updateSync {
             if (error == null) it.copy(lastSyncAt = System.currentTimeMillis(), lastResult = "${action}成功")
+            else if (error is NeedRelinkException)
+                // 授權失效：把「已連結」關掉，設定頁的開關會回到關閉，讓使用者看得到並重新連結
+                it.copy(googleLinked = false, lastResult = "${action}失敗：${error.message}")
             else it.copy(lastResult = "${action}失敗：${error.message}")
         }
     }
@@ -139,7 +142,14 @@ class SyncWorker(context: android.content.Context, params: WorkerParameters) : C
     override suspend fun doWork(): Result {
         val userId = inputData.getString(KEY_USER) ?: return Result.failure()
         val app = applicationContext as StockApp
-        return if (app.syncManager.backup(userId).isSuccess) Result.success() else Result.retry()
+        val result = app.syncManager.backup(userId)
+        if (result.isSuccess) return Result.success()
+        // 授權失效重試也沒用；其他錯誤（多半是網路）最多重試 3 次，下個週期再來
+        if (result.exceptionOrNull() is NeedRelinkException) {
+            app.syncManager.cancel(userId)
+            return Result.failure()
+        }
+        return if (runAttemptCount < 3) Result.retry() else Result.success() // 定期工作不能回 failure，否則之後不再執行
     }
 
     companion object {

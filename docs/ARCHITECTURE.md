@@ -1,4 +1,4 @@
-# 股票記帳 — 架構說明（1.13.0）
+# 股票記帳 — 架構說明（1.13.1）
 
 ## 總覽
 
@@ -38,6 +38,7 @@ app/src/main/java/com/rboneone/stockrecord/
 ├── network/               Google 財經與證交所即時報價；Yahoo Finance 名稱、歷史日線
 ├── alerts/                股價通知與質押維持率通知（檢查、背景工作、系統通知）
 ├── sync/                  備份格式、Google Drive、備份檔匯入匯出、自動同步
+  - 1.13.1：授權失效時自動關閉並提示重新連結、token 過期自動重試（`GoogleDrive.withToken`）
 ├── export/                Excel（.xlsx）產生
 └── ui/                    ViewModel、導覽、各頁面、格式化、主題色
 ```
