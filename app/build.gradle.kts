@@ -13,8 +13,8 @@ android {
         applicationId = "com.rboneone.stockrecord"
         minSdk = 26
         targetSdk = 35
-        versionCode = 37
-        versionName = "1.14.1"
+        versionCode = 38
+        versionName = "1.15.0"
     }
 
     signingConfigs {
@@ -70,8 +70,6 @@ dependencies {
     // 庫存股長按拖曳排序
     implementation("sh.calvin.reorderable:reorderable:2.4.3")
     implementation("androidx.work:work-runtime-ktx:2.10.0")
-    implementation("com.google.android.gms:play-services-auth:21.3.0")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.8.1")
 
     implementation("androidx.room:room-runtime:2.6.1")
     implementation("androidx.room:room-ktx:2.6.1")

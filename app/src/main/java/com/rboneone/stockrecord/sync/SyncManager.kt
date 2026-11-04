@@ -43,24 +43,30 @@ class SyncManager(private val app: StockApp) {
         )
     }
 
-    /** 把手機資料上傳到 Google 雲端 */
-    suspend fun backup(userId: String): Result<Unit> = runCatching {
-        val content = Backup.serialize(collect(userId))
-        GoogleDrive.withToken(app) { GoogleDrive.upload(it, fileName(userId), content) }
-    }.also { record(userId, it.exceptionOrNull(), "備份") }
+    /** 寫入自動備份檔（使用者先前選好的檔案） */
+    suspend fun backupAuto(userId: String): Result<Unit> {
+        val uri = app.settings(userId).sync.value.autoFileUri?.let(Uri::parse)
+            ?: return Result.failure<Unit>(IllegalStateException("還沒有選擇自動備份檔案")).also { record(userId, it.exceptionOrNull(), "備份") }
+        return backupToFile(userId, uri)
+    }
 
-    /** 用雲端備份取代手機資料，回傳還原的筆數 */
-    suspend fun restore(userId: String): Result<Int> = runCatching {
-        val json = GoogleDrive.withToken(app) { GoogleDrive.download(it, fileName(userId)) }
-            ?: error("雲端還沒有這個帳號的備份")
-        apply(userId, Backup.parse(json))
-    }.also { record(userId, it.exceptionOrNull(), "還原") }
+    /** 從自動備份檔還原，回傳還原的筆數 */
+    suspend fun restoreAuto(userId: String): Result<Int> {
+        val uri = app.settings(userId).sync.value.autoFileUri?.let(Uri::parse)
+            ?: return Result.failure<Int>(IllegalStateException("還沒有選擇自動備份檔案")).also { record(userId, it.exceptionOrNull(), "還原") }
+        return restoreFromFile(userId, uri)
+    }
+
+    /** 檔案權限被收回或檔案被刪除時，自動備份無法再寫入 */
+    fun isFileLost(e: Throwable?) = e is SecurityException || e is java.io.FileNotFoundException
 
     /** 備份成檔案，存到使用者選的位置（可選 Google 雲端硬碟） */
     suspend fun backupToFile(userId: String, uri: Uri): Result<Unit> = runCatching {
         val json = Backup.serialize(collect(userId))
         withContext(Dispatchers.IO) {
-            val out = app.contentResolver.openOutputStream(uri, "wt") ?: error("無法寫入檔案")
+            // 有些檔案提供者（例如雲端硬碟）不接受 "wt"，退回 "w"
+            val out = runCatching { app.contentResolver.openOutputStream(uri, "wt") }.getOrNull()
+                ?: app.contentResolver.openOutputStream(uri, "w") ?: error("無法寫入檔案")
             out.use { it.write(json.toByteArray(Charsets.UTF_8)) }
         }
     }.also { record(userId, it.exceptionOrNull(), "備份") }
@@ -74,6 +80,12 @@ class SyncManager(private val app: StockApp) {
         val data = runCatching { Backup.parse(json) }.getOrElse { error("這不是股票記帳的備份檔") }
         apply(userId, data)
     }.also { record(userId, it.exceptionOrNull(), "還原") }
+
+    /** 自動備份用固定檔名，每次覆寫同一個檔案 */
+    fun autoFileName(userId: String): String {
+        val username = app.accountStore.find(userId)?.username ?: "backup"
+        return "股票記帳自動備份_$username.json"
+    }
 
     /** 檔名例如「股票記帳備份_小明_20261030-1530.json」 */
     fun suggestedFileName(userId: String): String {
@@ -115,9 +127,10 @@ class SyncManager(private val app: StockApp) {
     private fun record(userId: String, error: Throwable?, action: String) {
         app.settings(userId).updateSync {
             if (error == null) it.copy(lastSyncAt = System.currentTimeMillis(), lastResult = "${action}成功")
-            else if (error is NeedRelinkException)
-                // 授權失效：把「已連結」關掉，設定頁的開關會回到關閉，讓使用者看得到並重新連結
-                it.copy(googleLinked = false, lastResult = "${action}失敗：${error.message}")
+            else if (isFileLost(error))
+                // 檔案不見或沒有權限：關掉自動備份，請使用者重新選檔
+                it.copy(auto = false, autoFileUri = null, autoFileName = null,
+                    lastResult = "${action}失敗：無法存取備份檔案，請重新選擇檔案")
             else it.copy(lastResult = "${action}失敗：${error.message}")
         }
     }
@@ -146,12 +159,12 @@ class SyncWorker(context: android.content.Context, params: WorkerParameters) : C
     override suspend fun doWork(): Result {
         val userId = inputData.getString(KEY_USER) ?: return Result.failure()
         val app = applicationContext as StockApp
-        val result = app.syncManager.backup(userId)
+        val result = app.syncManager.backupAuto(userId)
         if (result.isSuccess) return Result.success()
-        // 授權失效重試也沒用；其他錯誤（多半是網路）最多重試 3 次，下個週期再來
-        if (result.exceptionOrNull() is NeedRelinkException) {
+        // 檔案存取失敗重試也沒用（record 已關閉自動備份）；其他錯誤（多半是網路）最多重試 3 次
+        if (app.syncManager.isFileLost(result.exceptionOrNull())) {
             app.syncManager.cancel(userId)
-            return Result.failure()
+            return Result.success()
         }
         return if (runAttemptCount < 3) Result.retry() else Result.success() // 定期工作不能回 failure，否則之後不再執行
     }

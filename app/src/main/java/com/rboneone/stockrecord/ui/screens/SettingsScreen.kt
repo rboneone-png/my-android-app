@@ -4,7 +4,6 @@ import android.app.Activity
 import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -40,12 +39,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.google.android.gms.auth.api.identity.Identity
 import com.rboneone.stockrecord.auth.AuthMethod
 import com.rboneone.stockrecord.auth.Biometric
 import com.rboneone.stockrecord.data.SettingsRepository
 import com.rboneone.stockrecord.domain.FeeSettings
-import com.rboneone.stockrecord.sync.GoogleDrive
 import com.rboneone.stockrecord.ui.AppViewModel
 import com.rboneone.stockrecord.ui.formatTime
 import com.rboneone.stockrecord.ui.plainNumber
@@ -178,45 +175,23 @@ private fun SyncSection(vm: AppViewModel) {
         ActivityResultContracts.OpenDocument(),
     ) { uri -> restoreUri = uri }
 
-    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
-        if (result.resultCode == Activity.RESULT_OK) {
-            runCatching { Identity.getAuthorizationClient(context).getAuthorizationResultFromIntent(result.data) }
-                .onSuccess { vm.onGoogleLinked() }
-                .onFailure { vm.onGoogleLinkFailed(it.message ?: "未知錯誤") }
-        } else {
-            // 取消時盡量讀出 Google 給的原因（狀態碼），方便判斷是設定問題還是使用者取消
-            val detail = runCatching {
-                Identity.getAuthorizationClient(context).getAuthorizationResultFromIntent(result.data)
-                null
-            }.getOrElse { e ->
-                val status = (e as? com.google.android.gms.common.api.ApiException)?.statusCode
-                if (status != null) "Google 狀態碼 $status：${com.google.android.gms.common.api.CommonStatusCodes.getStatusCodeString(status)}" else e.message
+    // 自動備份檔：建立時要求長期的讀寫權限，背景備份才能一直寫入同一個檔案
+    val autoFileLauncher = rememberLauncherForActivityResult(PersistableCreateDocument()) { uri ->
+        if (uri != null) {
+            runCatching {
+                context.contentResolver.takePersistableUriPermission(
+                    uri, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION or android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
+                )
             }
-            vm.onGoogleLinkFailed(
-                "已取消（resultCode=${result.resultCode}" + (detail?.let { "，$it" } ?: "") + "）。" +
-                    "若選完帳號就取消，通常是 Google Cloud 的 Android 用戶端（套件名稱／SHA-1）或測試使用者設定有誤"
-            )
+            val name = runCatching {
+                context.contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)
+                    ?.use { c -> if (c.moveToFirst()) c.getString(0) else null }
+            }.getOrNull() ?: "自動備份檔"
+            vm.setAutoFile(uri, name)
         }
     }
 
-    fun link() {
-        scope.launch {
-            runCatching { GoogleDrive.authorize(context) }
-                .onSuccess { r ->
-                    val pending = r.pendingIntent
-                    if (r.hasResolution() && pending != null) {
-                        launcher.launch(IntentSenderRequest.Builder(pending.intentSender).build())
-                    } else {
-                        vm.onGoogleLinked()
-                    }
-                }
-                .onFailure {
-                    vm.onGoogleLinkFailed(GoogleDrive.friendly(it).message ?: "未知錯誤")
-                }
-        }
-    }
-
-    Section("Google 雲端同步") {
+    Section("雲端備份") {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(
                 onClick = { backupFileLauncher.launch(vm.backupFileName()) },
@@ -231,29 +206,25 @@ private fun SyncSection(vm: AppViewModel) {
         }
         Hint("按「備份」後，在檔案畫面左上角選單選「雲端硬碟」，即可把備份檔存到 Google 雲端硬碟；按「還原」選擇備份檔即可還原。不需要另外設定。")
         HorizontalDivider()
-        val autoOn = sync.auto && sync.googleLinked
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("自動同步", Modifier.weight(1f), style = MaterialTheme.typography.titleSmall)
-            Switch(
-                checked = autoOn,
+        Text("自動備份", style = MaterialTheme.typography.titleSmall)
+        if (sync.autoFileUri == null) {
+            Hint("選一個備份檔（建議存到「雲端硬碟」），之後 App 會定時自動把資料寫進同一個檔案。不需要 Google Cloud 設定，也不會過期。")
+            Button(
+                onClick = { autoFileLauncher.launch(vm.autoBackupFileName()) },
                 enabled = !syncing,
-                onCheckedChange = { on ->
-                    if (!on) {
-                        vm.setAutoSync(false, sync.intervalHours)
-                    } else {
-                        // 先記下要開啟，連結成功後就會開始排程；連結失敗會自動關回去
-                        vm.setAutoSync(true, sync.intervalHours)
-                        if (!sync.googleLinked) link()
-                    }
-                },
-            )
-        }
-        Hint(
-            if (autoOn) "已開啟：會依下方週期自動備份到 Google Drive 的 App 專用空間（在 Drive 網頁上看不到）。"
-            else "開啟後會定時自動備份到 Google Drive。第一次開啟需要連結 Google 帳號（需先完成 Google Cloud 設定）。"
-        )
-        if (sync.googleLinked) {
-            if (autoOn) {
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text(if (syncing) "備份中…" else "選擇自動備份檔案") }
+        } else {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("自動備份", Modifier.weight(1f))
+                Switch(
+                    checked = sync.auto,
+                    enabled = !syncing,
+                    onCheckedChange = { vm.setAutoSync(it, sync.intervalHours) },
+                )
+            }
+            Hint("備份檔：${sync.autoFileName ?: "已選擇"}")
+            if (sync.auto) {
                 Text("自動備份週期", style = MaterialTheme.typography.labelLarge)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     SYNC_HOURS.forEach { h ->
@@ -264,19 +235,19 @@ private fun SyncSection(vm: AppViewModel) {
                         )
                     }
                 }
-                Hint("有網路時會在背景自動備份；實際執行時間由 Android 系統安排，可能稍有延後。")
+                Hint("有網路時會在背景自動寫入備份檔；實際執行時間由 Android 系統安排，可能稍有延後。")
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(onClick = { vm.backupNow() }, enabled = !syncing, modifier = Modifier.weight(1f)) {
-                    Text(if (syncing) "同步中…" else "立即備份")
+                    Text(if (syncing) "備份中…" else "立即備份")
                 }
                 OutlinedButton(onClick = { confirmRestore = true }, enabled = !syncing, modifier = Modifier.weight(1f)) {
-                    Text("從雲端還原")
+                    Text("從備份檔還原")
                 }
             }
-            TextButton(onClick = { vm.unlinkGoogle() }) { Text("取消連結 Google 帳號") }
+            TextButton(onClick = { vm.clearAutoFile() }) { Text("更換或取消自動備份檔案") }
         }
-        if (sync.lastSyncAt > 0) Hint("上次同步：${formatTime(sync.lastSyncAt)}")
+        if (sync.lastSyncAt > 0) Hint("上次備份：${formatTime(sync.lastSyncAt)}")
         sync.lastResult?.let { Hint(it) }
     }
 
@@ -297,7 +268,7 @@ private fun SyncSection(vm: AppViewModel) {
     if (confirmRestore) {
         AlertDialog(
             onDismissRequest = { confirmRestore = false },
-            title = { Text("從雲端還原？") },
+            title = { Text("從備份檔還原？") },
             text = { Text("手機上目前這個帳號的交易和股利紀錄，會被雲端備份完全取代。") },
             confirmButton = {
                 TextButton(onClick = { confirmRestore = false; vm.restoreNow() }) {
@@ -373,4 +344,14 @@ private fun FeeSection(vm: AppViewModel) {
         ) { Text("儲存") }
         info?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
     }
+}
+
+/** 建立檔案時要求「長期」讀寫權限，讓背景工作之後還能寫入同一個檔案 */
+private class PersistableCreateDocument : ActivityResultContracts.CreateDocument("application/json") {
+    override fun createIntent(context: android.content.Context, input: String): android.content.Intent =
+        super.createIntent(context, input).addFlags(
+            android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION or
+                android.content.Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION,
+        )
 }

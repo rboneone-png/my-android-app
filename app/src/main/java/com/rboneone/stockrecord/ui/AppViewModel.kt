@@ -181,7 +181,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     init {
         val s = sync.value
-        if (s.auto && s.googleLinked) app.syncManager.schedule(userId, s.intervalHours, replace = false)
+        if (s.auto && s.autoFileUri != null) app.syncManager.schedule(userId, s.intervalHours, replace = false)
     }
 
     /** force = false 時，10 秒內不重複更新 */
@@ -601,36 +601,39 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun logout() = app.logout()
 
-    // ---- Google 雲端同步 ----
+    // ---- 雲端備份（檔案） ----
 
     private val _syncing = MutableStateFlow(false)
     val syncing: StateFlow<Boolean> = _syncing.asStateFlow()
 
-    fun onGoogleLinked() {
-        settingsRepository.updateSync { it.copy(googleLinked = true, lastResult = "已連結 Google 帳號") }
-        val s = sync.value
-        if (s.auto) app.syncManager.schedule(userId, s.intervalHours, replace = true)
+    /** 選好自動備份檔案：先寫一次確認可以寫入，成功才開始排程 */
+    fun setAutoFile(uri: android.net.Uri, name: String) {
+        settingsRepository.updateSync { it.copy(autoFileUri = uri.toString(), autoFileName = name, auto = true, lastResult = null) }
+        runSync {
+            app.syncManager.backupToFile(userId, uri).map {
+                app.syncManager.schedule(userId, sync.value.intervalHours, replace = true)
+                "已建立自動備份：$name"
+            }
+        }
     }
 
-    fun onGoogleLinkFailed(reason: String) {
-        // 連結失敗時自動同步無法運作，開關關回去
-        settingsRepository.updateSync { it.copy(auto = false, lastResult = "連結失敗：$reason") }
-    }
-
-    fun unlinkGoogle() {
+    /** 取消自動備份並忘記檔案（檔案本身不會被刪除） */
+    fun clearAutoFile() {
         app.syncManager.cancel(userId)
-        settingsRepository.updateSync { it.copy(googleLinked = false, auto = false, lastResult = null) }
+        settingsRepository.updateSync { it.copy(auto = false, autoFileUri = null, autoFileName = null, lastResult = null) }
     }
 
     fun setAutoSync(auto: Boolean, hours: Int) {
         settingsRepository.updateSync { it.copy(auto = auto, intervalHours = hours) }
-        if (auto && sync.value.googleLinked) app.syncManager.schedule(userId, hours, replace = true)
+        if (auto && sync.value.autoFileUri != null) app.syncManager.schedule(userId, hours, replace = true)
         else app.syncManager.cancel(userId)
     }
 
-    fun backupNow() = runSync { app.syncManager.backup(userId).map { "已備份到 Google 雲端" } }
+    fun backupNow() = runSync { app.syncManager.backupAuto(userId).map { "已備份到「${sync.value.autoFileName ?: "備份檔"}」" } }
 
-    fun restoreNow() = runSync { app.syncManager.restore(userId).map { "已從雲端還原 $it 筆紀錄" } }
+    fun restoreNow() = runSync { app.syncManager.restoreAuto(userId).map { "已從備份檔還原 $it 筆紀錄" } }
+
+    fun autoBackupFileName(): String = app.syncManager.autoFileName(userId)
 
     fun backupFileName(): String = app.syncManager.suggestedFileName(userId)
 

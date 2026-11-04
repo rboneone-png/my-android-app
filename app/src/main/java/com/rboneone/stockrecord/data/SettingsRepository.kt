@@ -11,7 +11,9 @@ data class SyncConfig(
     /** true：依週期自動備份；false：手動 */
     val auto: Boolean = false,
     val intervalHours: Int = 24,
-    val googleLinked: Boolean = false,
+    /** 自動備份寫入的檔案（使用者用系統檔案選擇器選的，可放在 Google 雲端硬碟）；null 表示還沒選 */
+    val autoFileUri: String? = null,
+    val autoFileName: String? = null,
     val lastSyncAt: Long = 0,
     val lastResult: String? = null,
 )
@@ -63,7 +65,8 @@ class SettingsRepository(context: Context, userId: String) {
     private fun loadSync() = SyncConfig(
         auto = prefs.getBoolean(KEY_SYNC_AUTO, false),
         intervalHours = prefs.getInt(KEY_SYNC_HOURS, 24),
-        googleLinked = prefs.getBoolean(KEY_GOOGLE_LINKED, false),
+        autoFileUri = prefs.getString(KEY_AUTO_URI, null),
+        autoFileName = prefs.getString(KEY_AUTO_NAME, null),
         lastSyncAt = prefs.getLong(KEY_LAST_SYNC, 0),
         lastResult = prefs.getString(KEY_LAST_RESULT, null),
     )
@@ -107,7 +110,8 @@ class SettingsRepository(context: Context, userId: String) {
         prefs.edit()
             .putBoolean(KEY_SYNC_AUTO, s.auto)
             .putInt(KEY_SYNC_HOURS, s.intervalHours)
-            .putBoolean(KEY_GOOGLE_LINKED, s.googleLinked)
+            .putString(KEY_AUTO_URI, s.autoFileUri)
+            .putString(KEY_AUTO_NAME, s.autoFileName)
             .putLong(KEY_LAST_SYNC, s.lastSyncAt)
             .putString(KEY_LAST_RESULT, s.lastResult)
             .apply()
@@ -133,7 +137,8 @@ class SettingsRepository(context: Context, userId: String) {
         private const val KEY_PLEDGE_INCLUDE_LEV = "pledge_include_leveraged"
         private const val KEY_SYNC_AUTO = "sync_auto"
         private const val KEY_SYNC_HOURS = "sync_hours"
-        private const val KEY_GOOGLE_LINKED = "google_linked"
+        private const val KEY_AUTO_URI = "sync_auto_uri"
+        private const val KEY_AUTO_NAME = "sync_auto_name"
         private const val KEY_LAST_SYNC = "last_sync"
         private const val KEY_LAST_RESULT = "last_sync_result"
     }

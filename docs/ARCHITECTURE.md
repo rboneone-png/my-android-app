@@ -1,4 +1,4 @@
-# 股票記帳 — 架構說明（1.14.1）
+# 股票記帳 — 架構說明（1.15.0）
 
 ## 總覽
 
@@ -91,7 +91,7 @@ app/src/main/java/com/rboneone/stockrecord/
 
 **備份**：`Backup` 把交易、股利、分類、現金、通知、質押、觀察、排序、手續費序列化成 JSON。
 - 手動：存成檔案（系統檔案選擇器，可選 Google 雲端硬碟）或從檔案還原
-- 自動：`SyncWorker` 依週期上傳到 Google Drive 的 App 專用資料夾（需 Google Cloud 設定）
+- 自動：`SyncWorker` 依週期寫入使用者選的備份檔（系統檔案選擇器 + 長期 URI 權限，可放 Google 雲端硬碟）；檔案不見或權限被收回時自動關閉並提示重選。1.15.0 起移除 Google 授權 API（`GoogleDrive`）
 
 ## 建置與發布
 
