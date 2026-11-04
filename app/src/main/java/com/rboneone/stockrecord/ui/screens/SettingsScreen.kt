@@ -184,7 +184,18 @@ private fun SyncSection(vm: AppViewModel) {
                 .onSuccess { vm.onGoogleLinked() }
                 .onFailure { vm.onGoogleLinkFailed(it.message ?: "未知錯誤") }
         } else {
-            vm.onGoogleLinkFailed("已取消")
+            // 取消時盡量讀出 Google 給的原因（狀態碼），方便判斷是設定問題還是使用者取消
+            val detail = runCatching {
+                Identity.getAuthorizationClient(context).getAuthorizationResultFromIntent(result.data)
+                null
+            }.getOrElse { e ->
+                val status = (e as? com.google.android.gms.common.api.ApiException)?.statusCode
+                if (status != null) "Google 狀態碼 $status：${com.google.android.gms.common.api.CommonStatusCodes.getStatusCodeString(status)}" else e.message
+            }
+            vm.onGoogleLinkFailed(
+                "已取消（resultCode=${result.resultCode}" + (detail?.let { "，$it" } ?: "") + "）。" +
+                    "若選完帳號就取消，通常是 Google Cloud 的 Android 用戶端（套件名稱／SHA-1）或測試使用者設定有誤"
+            )
         }
     }
 
