@@ -64,7 +64,7 @@ class AlertChecker(private val app: StockApp) {
         if (settings.pledgeAlertDay == day) return false
         val text = buildString {
             append("目前質押維持率 ${"%.1f".format(ratio)}%，")
-            append("質押總市值 ${"%,.0f".format(view.totalMarketValue)}，質押總金額 ${"%,.0f".format(view.totalAmount)}")
+            append("質押總市值 ${"%,.0f".format(view.totalMarketValue)}，質借總金額 ${"%,.0f".format(view.totalAmount)}")
             if (username != null) append("\n帳號：$username")
         }
         AlertNotifier.notify(app, "$userId/pledge".hashCode(), "質押維持率低於 ${PledgeCalculator.DANGER_RATIO.toInt()}%", text)

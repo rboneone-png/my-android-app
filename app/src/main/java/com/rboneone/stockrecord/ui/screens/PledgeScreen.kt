@@ -60,8 +60,8 @@ private fun ratioText(r: Double?) = r?.let { "%.1f%%".format(it) } ?: "--"
 fun PledgeScreen(vm: AppViewModel, onEdit: (Long) -> Unit, onAdd: () -> Unit) {
     val view by vm.pledgeView.collectAsStateWithLifecycle()
     val includeLeveraged by vm.pledgeIncludeLeveraged.collectAsStateWithLifecycle()
-    // 收合的月份（yyyy-MM），預設全部展開
-    var collapsed by rememberSaveable { mutableStateOf(setOf<String>()) }
+    // 已展開的月份（yyyy-MM），預設全部收合
+    var opened by rememberSaveable { mutableStateOf(setOf<String>()) }
 
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
@@ -94,10 +94,10 @@ fun PledgeScreen(vm: AppViewModel, onEdit: (Long) -> Unit, onAdd: () -> Unit) {
                 }
                 v.months.forEach { group ->
                     val key = group.month.toString()
-                    val expanded = key !in collapsed
+                    val expanded = key in opened
                     item(key = "month-$key") {
                         MonthHeader(group, expanded) {
-                            collapsed = if (expanded) collapsed + key else collapsed - key
+                            opened = if (expanded) opened - key else opened + key
                         }
                     }
                     if (expanded) {
@@ -109,9 +109,9 @@ fun PledgeScreen(vm: AppViewModel, onEdit: (Long) -> Unit, onAdd: () -> Unit) {
                 }
                 item(key = "note") {
                     Text(
-                        "利息支出 = 質押利率 × 質押金額（年）\n" +
-                            "維持率 = 質押股數 × 股價 ÷ 質押金額 × 100%\n" +
-                            "質押維持率 = 質押總市值 ÷ 質押總金額 × 100%，低於 175% 時會發出通知",
+                        "利息支出 = 質押利率 × 質借金額（年）\n" +
+                            "維持率 = 質押股數 × 股價 ÷ 質借金額 × 100%\n" +
+                            "質押維持率 = 質押總市值 ÷ 質借總金額 × 100%，低於 175% 時會發出通知",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(16.dp),
@@ -156,7 +156,7 @@ private fun SummaryCard(v: PledgeView, includeLeveraged: Boolean, onIncludeLever
             }
             Row {
                 Cell("質押總市值", twd(v.totalMarketValue), Modifier.weight(1f))
-                Cell("質押總金額", twd(v.totalAmount), Modifier.weight(1f))
+                Cell("質借總金額", twd(v.totalAmount), Modifier.weight(1f))
                 Cell("質押維持率", ratioText(ratio), Modifier.weight(1f), pledgeColor(ratio), bold = true)
                 Cell("利息總支出", twd(v.totalInterest), Modifier.weight(1f))
             }
@@ -215,7 +215,7 @@ private fun TableHeader() {
     Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
         Text("股票", Modifier.weight(W_STOCK), style = style, color = color)
         Text("質押股數", Modifier.weight(W_SHARES), style = style, color = color, textAlign = TextAlign.End)
-        Text("質押金額", Modifier.weight(W_AMOUNT), style = style, color = color, textAlign = TextAlign.End)
+        Text("質借金額", Modifier.weight(W_AMOUNT), style = style, color = color, textAlign = TextAlign.End)
         Text("利息支出", Modifier.weight(W_INTEREST), style = style, color = color, textAlign = TextAlign.End)
         Text("維持率", Modifier.weight(W_RATIO), style = style, color = color, textAlign = TextAlign.End)
     }

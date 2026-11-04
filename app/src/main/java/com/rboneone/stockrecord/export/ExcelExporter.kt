@@ -97,7 +97,7 @@ object ExcelExporter {
             ),
             Sheet(
                 "質押",
-                listOf("日期", "代號", "名稱", "質押股數", "質押金額", "利率%", "利息支出（年）", "現價", "質押市值", "維持率%"),
+                listOf("日期", "代號", "名稱", "質押股數", "質借金額", "利率%", "利息支出（年）", "現價", "質押市值", "維持率%"),
                 pledges?.items.orEmpty().map { item ->
                     val p = item.pledge
                     listOf(

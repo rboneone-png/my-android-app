@@ -17,7 +17,7 @@ data class PledgeItem(
     /** 質押市值 = 質押股數 × 股價 */
     val marketValue: Double? get() = price?.let { it * pledge.shares }
 
-    /** 維持率 = 質押股數 × 股價 ÷ 質押金額 × 100% */
+    /** 維持率 = 質押股數 × 股價 ÷ 質借金額 × 100% */
     val ratio: Double? get() = marketValue?.takeIf { pledge.amount > 0 }?.let { it / pledge.amount * 100 }
 }
 
@@ -28,7 +28,7 @@ data class PledgeMonth(val month: YearMonth, val items: List<PledgeItem>) {
     val totalInterest: Double get() = items.sumOf { it.pledge.interest }
     val missingQuotes: Int get() = items.count { it.price == null }
 
-    /** 該月份的維持率 = 該月質押市值 ÷ 該月質押金額 × 100% */
+    /** 該月份的維持率 = 該月質押市值 ÷ 該月質借金額 × 100% */
     val ratio: Double?
         get() = if (totalAmount > 0 && missingQuotes == 0) totalMarketValue / totalAmount * 100 else null
 }
@@ -52,7 +52,7 @@ data class PledgeView(
     /** 有股票還沒有報價時，總維持率無法正確計算 */
     val missingQuotes: Int get() = items.count { it.price == null }
 
-    /** 質押維持率 = 質押總市值 ÷ 質押總金額 × 100% */
+    /** 質押維持率 = 質押總市值 ÷ 質借總金額 × 100% */
     val ratio: Double?
         get() = if (totalAmount > 0 && missingQuotes == 0) totalMarketValue / totalAmount * 100 else null
 }
@@ -79,10 +79,10 @@ object PledgeCalculator {
     /** 質押以 1000 股（1 張）為單位 */
     const val LOT = 1000.0
 
-    /** 質押率（質押金額 ÷ 可質押市值）上限 */
+    /** 質押率（質借金額 ÷ 可質押市值）上限 */
     const val MAX_LTV_PCT = 60.0
 
-    /** 質押金額的最小單位（元） */
+    /** 質借金額的最小單位（元） */
     const val AMOUNT_UNIT = 1000.0
 
     /** 新增質押時維持率的下限（%），低於無法新增 */
@@ -119,12 +119,12 @@ object PledgeCalculator {
             }
             .sortedBy { it.symbol }
 
-    /** 質押金額必須是 1000 元的倍數；合法時回傳 null，否則回傳說明 */
+    /** 質借金額必須是 1000 元的倍數；合法時回傳 null，否則回傳說明 */
     fun amountError(amount: Double?): String? = when {
-        amount == null -> "請輸入質押金額"
-        amount <= 0 -> "質押金額需大於 0"
+        amount == null -> "請輸入質借金額"
+        amount <= 0 -> "質借金額需大於 0"
         amount % AMOUNT_UNIT != 0.0 ->
-            "質押金額須為 1,000 的倍數（如 5,000、12,000），請重新輸入"
+            "質借金額須為 1,000 的倍數（如 5,000、12,000），請重新輸入"
         else -> null
     }
 
@@ -137,7 +137,7 @@ object PledgeCalculator {
         else -> null
     }
 
-    /** 維持率 = 質押股數 × 股價 ÷ 質押金額 × 100%；缺資料時為 null */
+    /** 維持率 = 質押股數 × 股價 ÷ 質借金額 × 100%；缺資料時為 null */
     fun maintenancePct(shares: Double, price: Double?, amount: Double): Double? =
         if (price != null && price > 0 && shares > 0 && amount > 0) shares * price / amount * 100 else null
 
@@ -145,7 +145,7 @@ object PledgeCalculator {
     fun belowMinMaintenance(maintenancePct: Double): Boolean =
         Math.round(maintenancePct * 100) / 100.0 < MIN_MAINTENANCE_PCT
 
-    /** 質押率 = 質押金額 ÷ 可質押市值 × 100%；沒有市值時為 null */
+    /** 質押率 = 質借金額 ÷ 可質押市值 × 100%；沒有市值時為 null */
     fun ltvPct(amount: Double, marketValue: Double?): Double? =
         marketValue?.takeIf { it > 0 }?.let { amount / it * 100 }
 

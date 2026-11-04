@@ -140,8 +140,8 @@ fun PledgeEditScreen(
             else -> PledgeCalculator.sharesError(pledgeShares, available)
         } ?: PledgeCalculator.amountError(amount) ?: when {
             rate == null || rate < 0 -> "請輸入質押利率（%）"
-            lowMaintenance -> "維持率 %.2f%% 低於 %.0f%%，無法新增，請降低質押金額或增加質押股數".format(maintenance, PledgeCalculator.MIN_MAINTENANCE_PCT)
-            overLimit -> "質押率 %.2f%% 超過上限 %.0f%%，無法新增，請降低質押金額".format(ltv, PledgeCalculator.MAX_LTV_PCT)
+            lowMaintenance -> "維持率 %.2f%% 低於 %.0f%%，無法新增，請降低質借金額或增加質押股數".format(maintenance, PledgeCalculator.MIN_MAINTENANCE_PCT)
+            overLimit -> "質押率 %.2f%% 超過上限 %.0f%%，無法新增，請降低質借金額".format(ltv, PledgeCalculator.MAX_LTV_PCT)
             else -> null
         }
         if (error != null) return
@@ -220,11 +220,11 @@ fun PledgeEditScreen(
                 keyboardOptions = KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
                 modifier = Modifier.fillMaxWidth(),
             )
-            // F. 質押金額：使用者輸入，千元為單位
+            // F. 質借金額：使用者輸入，千元為單位
             OutlinedTextField(
                 value = amountText,
                 onValueChange = { amountText = it; error = null },
-                label = { Text("質押金額（元）") },
+                label = { Text("質借金額（元）") },
                 singleLine = true,
                 isError = amountError != null,
                 supportingText = {
@@ -233,11 +233,11 @@ fun PledgeEditScreen(
                 keyboardOptions = KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
                 modifier = Modifier.fillMaxWidth(),
             )
-            // 維持率 = 質押股數 × 股價 ÷ 質押金額，最低 166%
+            // 維持率 = 質押股數 × 股價 ÷ 質借金額，最低 166%
             ReadOnlyField(
-                "維持率（質押股數 × 股價 ÷ 質押金額）",
+                "維持率（質押股數 × 股價 ÷ 質借金額）",
                 maintenance?.let { "%.2f%%".format(it) } ?: "--",
-                supporting = if (lowMaintenance) "低於下限 ${PledgeCalculator.MIN_MAINTENANCE_PCT.toInt()}%，無法新增，請降低質押金額或增加質押股數"
+                supporting = if (lowMaintenance) "低於下限 ${PledgeCalculator.MIN_MAINTENANCE_PCT.toInt()}%，無法新增，請降低質借金額或增加質押股數"
                 else "最低 ${PledgeCalculator.MIN_MAINTENANCE_PCT.toInt()}%",
                 isError = lowMaintenance,
                 valueColor = if (lowMaintenance) ProfitRed else Color.Unspecified,
@@ -248,21 +248,21 @@ fun PledgeEditScreen(
                 supporting = "年利率，例如 2.5% 填 2.5",
                 modifier = Modifier.fillMaxWidth(),
             )
-            // H. 質押率 = 質押金額 ÷ 可質押市值，最高 60%
+            // H. 質押率 = 質借金額 ÷ 可質押市值，最高 60%
             ReadOnlyField(
-                "質押率（質押金額 ÷ 可質押市值）",
+                "質押率（質借金額 ÷ 可質押市值）",
                 ltv?.let { "%.2f%%".format(it) } ?: "--",
-                supporting = if (overLimit) "超過上限 ${PledgeCalculator.MAX_LTV_PCT.toInt()}%，無法新增，請降低質押金額"
+                supporting = if (overLimit) "超過上限 ${PledgeCalculator.MAX_LTV_PCT.toInt()}%，無法新增，請降低質借金額"
                 else "上限 ${PledgeCalculator.MAX_LTV_PCT.toInt()}%",
                 isError = overLimit,
                 valueColor = if (overLimit) ProfitRed else Color.Unspecified,
             )
-            // I. 利息預估 = 質押金額 × 質押利率（年）
+            // I. 利息預估 = 質借金額 × 質押利率（年）
             ReadOnlyField(
                 "利息預估（年）",
                 if (amount != null && amount > 0 && rate != null && rate >= 0)
                     formatAmount(Market.TW, amount * rate / 100) else "--",
-                supporting = "質押金額 × 質押利率",
+                supporting = "質借金額 × 質押利率",
             )
             // J. 日期：預設今日，下拉選擇
             DateDropdowns(date) { date = it }

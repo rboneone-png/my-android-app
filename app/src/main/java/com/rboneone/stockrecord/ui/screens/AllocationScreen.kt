@@ -150,7 +150,7 @@ private fun SummaryCard(a: AllocationView) {
             AllocationRow("A", "原型市值", a.core, a.pct(a.core), CoreColor)
             AllocationRow("B", "正二市值", a.leveraged, a.pct(a.leveraged), LeveragedColor)
             AllocationRow("C", "類現金市值", a.cashLike, a.pct(a.cashLike), CashLikeColor)
-            AllocationRow("D", "現金（帳務可用餘額）", a.cash, a.pct(a.cash), CashColor)
+            AllocationRow("D", "現金", a.cash, a.pct(a.cash), CashColor)
             AllocationRow("E", "其他市值", a.other, a.pct(a.other), OtherColor)
             HorizontalDivider()
             Text(

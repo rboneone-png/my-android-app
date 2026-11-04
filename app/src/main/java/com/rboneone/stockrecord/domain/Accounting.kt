@@ -13,16 +13,16 @@ import com.rboneone.stockrecord.data.TradeType
  *
  * 當日（今天）：
  * - B 當日賣出金額、C 當日買進金額：台股 + 美股（以匯率換成台幣）
- * - D 當日帳務 = B − C；當日質押金額：今天新增的質押金額
+ * - D 當日帳務 = B − C；當日質借金額：今天新增的質借金額
  * - 當日股利：今天入帳的現金股利（扣除代扣稅與匯費後的實際入帳金額）
  *
  * 累計（歷來到今天，隔天不會消失）：
  * - 帳務累計 = 歷來每一天（賣出 − 買進）的總和，今天的就是 D
- * - 質押金額累計 = 歷來質押金額的總和
+ * - 質借金額累計 = 歷來質借金額的總和
  * - 股利累計 = 歷來入帳的現金股利總和
  * - 存入現金、領出現金：截至今天的累計
  *
- * A 當日可用餘額 = 存入現金 − 領出現金 + 帳務累計 + 質押金額累計 + 股利累計
+ * A 當日可用餘額 = 存入現金 − 領出現金 + 帳務累計 + 質借金額累計 + 股利累計
  */
 data class DayAccount(
     /** 截至當天累計存入的現金 */
@@ -33,11 +33,11 @@ data class DayAccount(
     val sells: Long,
     /** C：當日所有買進股票的金額總和 */
     val buys: Long,
-    /** 當日質押金額 */
+    /** 當日質借金額 */
     val pledged: Long,
     /** 歷來（到今天）每一天賣出 − 買進的總和 */
     val accountTotal: Long,
-    /** 歷來（到今天）質押金額的總和 */
+    /** 歷來（到今天）質借金額的總和 */
     val pledgedTotal: Long,
     /** 當日入帳的現金股利 */
     val dividendsToday: Long,
@@ -51,7 +51,7 @@ data class DayAccount(
     /** D：當日帳務 = B − C */
     val dayNet: Long get() = sells - buys
 
-    /** A：當日可用餘額 = 存入現金 − 領出現金 + 帳務累計 + 質押金額累計 + 股利累計 */
+    /** A：當日可用餘額 = 存入現金 − 領出現金 + 帳務累計 + 質借金額累計 + 股利累計 */
     val available: Long get() = deposits - withdrawals + accountTotal + pledgedTotal + dividendsTotal
 }
 

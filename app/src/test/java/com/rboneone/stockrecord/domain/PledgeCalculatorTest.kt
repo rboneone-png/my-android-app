@@ -24,10 +24,10 @@ class PledgeCalculatorTest {
         assertEquals(25_000.0, v.items[0].pledge.interest, 1e-9)
         assertEquals(6_000.0, v.items[1].pledge.interest, 1e-9)
         assertEquals(31_000.0, v.totalInterest, 1e-9)
-        // 維持率 = 質押股數 × 股價 ÷ 質押金額 × 100%
+        // 維持率 = 質押股數 × 股價 ÷ 質借金額 × 100%
         assertEquals(240.0, v.items[0].ratio!!, 1e-9)
         assertEquals(1_000_000.0 / 300_000 * 100, v.items[1].ratio!!, 1e-9)
-        // 質押維持率 = 質押總市值 ÷ 質押總金額 × 100%
+        // 質押維持率 = 質押總市值 ÷ 質借總金額 × 100%
         assertEquals(3_400_000.0, v.totalMarketValue, 1e-9)
         assertEquals(1_300_000.0, v.totalAmount, 1e-9)
         assertEquals(3_400_000.0 / 1_300_000 * 100, v.ratio!!, 1e-9)

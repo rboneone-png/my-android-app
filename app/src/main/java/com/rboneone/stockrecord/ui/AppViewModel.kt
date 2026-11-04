@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.rboneone.stockrecord.StockApp
 import com.rboneone.stockrecord.auth.Account
 import com.rboneone.stockrecord.auth.AuthMethod
+import com.rboneone.stockrecord.data.totalHours
 import com.rboneone.stockrecord.data.AssetCategory
 import com.rboneone.stockrecord.data.CashFlow
 import com.rboneone.stockrecord.data.Dividend
@@ -181,7 +182,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     init {
         val s = sync.value
-        if (s.auto && s.autoFileUri != null) app.syncManager.schedule(userId, s.intervalHours, replace = false)
+        if (s.auto && s.autoFileUri != null) app.syncManager.schedule(userId, s.totalHours(), replace = false)
     }
 
     /** force = false 時，10 秒內不重複更新 */
@@ -611,7 +612,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         settingsRepository.updateSync { it.copy(autoFileUri = uri.toString(), autoFileName = name, auto = true, lastResult = null) }
         runSync {
             app.syncManager.backupToFile(userId, uri).map {
-                app.syncManager.schedule(userId, sync.value.intervalHours, replace = true)
+                app.syncManager.schedule(userId, sync.value.totalHours(), replace = true)
                 "已建立自動備份：$name"
             }
         }
@@ -623,10 +624,20 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         settingsRepository.updateSync { it.copy(auto = false, autoFileUri = null, autoFileName = null, lastResult = null) }
     }
 
-    fun setAutoSync(auto: Boolean, hours: Int) {
-        settingsRepository.updateSync { it.copy(auto = auto, intervalHours = hours) }
-        if (auto && sync.value.autoFileUri != null) app.syncManager.schedule(userId, hours, replace = true)
+    fun setAutoSync(auto: Boolean) {
+        settingsRepository.updateSync { it.copy(auto = auto) }
+        if (auto && sync.value.autoFileUri != null) app.syncManager.schedule(userId, sync.value.totalHours(), replace = true)
         else app.syncManager.cancel(userId)
+    }
+
+    /** 自訂自動備份週期（天、小時）；合計至少 1 小時，回傳 false 表示不合法 */
+    fun setAutoInterval(days: Int, hours: Int): Boolean {
+        if (days < 0 || hours < 0 || days * 24 + hours < 1 || days > 365) return false
+        settingsRepository.updateSync { it.copy(intervalDays = days, intervalHours = hours) }
+        if (sync.value.auto && sync.value.autoFileUri != null) {
+            app.syncManager.schedule(userId, sync.value.totalHours(), replace = true)
+        }
+        return true
     }
 
     fun backupNow() = runSync { app.syncManager.backupAuto(userId).map { "已備份到「${sync.value.autoFileName ?: "備份檔"}」" } }

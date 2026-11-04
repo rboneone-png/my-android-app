@@ -19,6 +19,6 @@ data class Pledge(
     val date: Long,
     val note: String = "",
 ) {
-    /** 利息支出 = 利率 × 質押金額（年） */
+    /** 利息支出 = 利率 × 質借金額（年） */
     val interest: Double get() = amount * ratePct / 100
 }

@@ -7,9 +7,14 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
+/** 自動備份週期換算成總小時 */
+fun SyncConfig.totalHours(): Int = (intervalDays * 24 + intervalHours).coerceAtLeast(1)
+
 data class SyncConfig(
     /** true：依週期自動備份；false：手動 */
     val auto: Boolean = false,
+    /** 自動備份週期 = 天數 × 24 + 小時數（預設 0 天 24 小時），至少 1 小時 */
+    val intervalDays: Int = 0,
     val intervalHours: Int = 24,
     /** 自動備份寫入的檔案（使用者用系統檔案選擇器選的，可放在 Google 雲端硬碟）；null 表示還沒選 */
     val autoFileUri: String? = null,
@@ -64,6 +69,7 @@ class SettingsRepository(context: Context, userId: String) {
 
     private fun loadSync() = SyncConfig(
         auto = prefs.getBoolean(KEY_SYNC_AUTO, false),
+        intervalDays = prefs.getInt(KEY_SYNC_DAYS, 0),
         intervalHours = prefs.getInt(KEY_SYNC_HOURS, 24),
         autoFileUri = prefs.getString(KEY_AUTO_URI, null),
         autoFileName = prefs.getString(KEY_AUTO_NAME, null),
@@ -109,6 +115,7 @@ class SettingsRepository(context: Context, userId: String) {
         val s = transform(_sync.value)
         prefs.edit()
             .putBoolean(KEY_SYNC_AUTO, s.auto)
+            .putInt(KEY_SYNC_DAYS, s.intervalDays)
             .putInt(KEY_SYNC_HOURS, s.intervalHours)
             .putString(KEY_AUTO_URI, s.autoFileUri)
             .putString(KEY_AUTO_NAME, s.autoFileName)
@@ -137,6 +144,7 @@ class SettingsRepository(context: Context, userId: String) {
         private const val KEY_PLEDGE_INCLUDE_LEV = "pledge_include_leveraged"
         private const val KEY_SYNC_AUTO = "sync_auto"
         private const val KEY_SYNC_HOURS = "sync_hours"
+        private const val KEY_SYNC_DAYS = "sync_days"
         private const val KEY_AUTO_URI = "sync_auto_uri"
         private const val KEY_AUTO_NAME = "sync_auto_name"
         private const val KEY_LAST_SYNC = "last_sync"

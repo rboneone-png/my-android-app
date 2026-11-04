@@ -34,6 +34,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -51,7 +54,6 @@ import com.rboneone.stockrecord.ui.plainNumber
 import com.rboneone.stockrecord.ui.toAmountOrNull
 import kotlinx.coroutines.launch
 
-private val SYNC_HOURS = listOf(1, 6, 12, 24)
 
 @Composable
 fun SettingsScreen(vm: AppViewModel) {
@@ -219,9 +221,9 @@ private fun SyncSection(vm: AppViewModel) {
                 enabled = !syncing,
                 onCheckedChange = { on ->
                     when {
-                        !on -> vm.setAutoSync(false, sync.intervalHours)
+                        !on -> vm.setAutoSync(false)
                         sync.autoFileUri == null -> autoFileLauncher.launch(vm.autoBackupFileName())
-                        else -> vm.setAutoSync(true, sync.intervalHours)
+                        else -> vm.setAutoSync(true)
                     }
                 },
             )
@@ -236,16 +238,7 @@ private fun SyncSection(vm: AppViewModel) {
         } else {
             Hint("備份檔：${sync.autoFileName ?: "已選擇"}　目前：${if (autoOn) "自動備份已開啟" else "自動備份已關閉（不會定時備份，仍可手動立即備份）"}")
             if (autoOn) {
-                Text("自動備份週期", style = MaterialTheme.typography.labelLarge)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    SYNC_HOURS.forEach { h ->
-                        FilterChip(
-                            selected = sync.intervalHours == h,
-                            onClick = { vm.setAutoSync(true, h) },
-                            label = { Text("$h 小時") },
-                        )
-                    }
-                }
+                IntervalEditor(sync.intervalDays, sync.intervalHours) { d, h -> vm.setAutoInterval(d, h) }
                 Hint("有網路時會在背景自動寫入備份檔；實際執行時間由 Android 系統安排，可能稍有延後。")
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -365,4 +358,32 @@ private class PersistableCreateDocument : ActivityResultContracts.CreateDocument
                 android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION or
                 android.content.Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION,
         )
+}
+
+/** 自訂自動備份週期：天數＋小時數，按「套用」才生效；合計至少 1 小時 */
+@Composable
+private fun IntervalEditor(days: Int, hours: Int, onApply: (Int, Int) -> Boolean) {
+    var d by rememberSaveable(days, hours) { mutableStateOf(days.toString()) }
+    var h by rememberSaveable(days, hours) { mutableStateOf(hours.toString()) }
+    var info by remember { mutableStateOf<String?>(null) }
+    Text("自動備份週期", style = MaterialTheme.typography.labelLarge)
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+        OutlinedTextField(
+            value = d, onValueChange = { d = it.filter(Char::isDigit).take(3); info = null },
+            label = { Text("天") }, singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            modifier = Modifier.weight(1f),
+        )
+        OutlinedTextField(
+            value = h, onValueChange = { h = it.filter(Char::isDigit).take(4); info = null },
+            label = { Text("小時") }, singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            modifier = Modifier.weight(1f),
+        )
+        OutlinedButton(onClick = {
+            val ok = onApply(d.toIntOrNull() ?: 0, h.toIntOrNull() ?: 0)
+            info = if (ok) "已套用" else "週期至少 1 小時，最多 365 天"
+        }) { Text("套用") }
+    }
+    info?.let { Hint(it) }
 }
