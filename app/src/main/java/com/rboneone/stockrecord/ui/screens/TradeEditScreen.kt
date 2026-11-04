@@ -14,6 +14,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.foundation.layout.size
+import com.rboneone.stockrecord.ui.stepShares
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.DatePicker
@@ -248,6 +252,9 @@ fun TradeEditScreen(vm: AppViewModel, tradeId: Long, onDone: () -> Unit) {
                 NumberField(
                     sharesText, { sharesText = it }, "股數",
                     supporting = if (market == Market.TW) "1 張 = 1000 股" else null,
+                    // 上下箭頭：每按一次增減 1000 股
+                    onStep = { dir -> sharesText = plainNumber(stepShares(sharesText.toAmountOrNull(), dir)); error = null },
+                    stepDescription = " 1000 股",
                     modifier = Modifier.weight(1f),
                 )
                 NumberField(
@@ -364,6 +371,9 @@ fun NumberField(
     supportingAnnotated: AnnotatedString? = null,
     /** 有值時顯示「自動」按鈕，讓使用者恢復自動計算 */
     onResetAuto: (() -> Unit)? = null,
+    /** 有值時在欄位右緣顯示上下箭頭；參數為 +1（增加）或 -1（減少） */
+    onStep: ((Int) -> Unit)? = null,
+    stepDescription: String = "",
 ) {
     OutlinedTextField(
         value = value,
@@ -372,8 +382,19 @@ fun NumberField(
         singleLine = true,
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
         supportingText = supportingAnnotated?.let { { Text(it) } } ?: supporting?.let { { Text(it) } },
-        trailingIcon = onResetAuto?.let { reset ->
-            { TextButton(onClick = reset) { Text("自動") } }
+        trailingIcon = when {
+            onResetAuto != null -> ({ TextButton(onClick = onResetAuto) { Text("自動") } })
+            onStep != null -> ({
+                Column {
+                    IconButton(onClick = { onStep(1) }, modifier = Modifier.size(26.dp)) {
+                        Icon(Icons.Filled.KeyboardArrowUp, contentDescription = "增加$stepDescription")
+                    }
+                    IconButton(onClick = { onStep(-1) }, modifier = Modifier.size(26.dp)) {
+                        Icon(Icons.Filled.KeyboardArrowDown, contentDescription = "減少$stepDescription")
+                    }
+                }
+            })
+            else -> null
         },
         modifier = modifier,
     )

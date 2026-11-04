@@ -19,6 +19,13 @@ fun plainNumber(value: Double): String =
     if (value % 1.0 == 0.0) "%.0f".format(value)
     else "%.6f".format(value).trimEnd('0').trimEnd('.')
 
+/** 股數上下調整的單位：每按一次增減 1000 股（1 張） */
+const val SHARES_STEP = 1000.0
+
+/** 股數按上下箭頭：direction 為 +1 或 -1，每次加減 1000 股，最少到 0；空白視為 0 */
+fun stepShares(current: Double?, direction: Int): Double =
+    maxOf(0.0, Math.round(((current ?: 0.0) + direction * SHARES_STEP) * 1_000_000) / 1_000_000.0)
+
 fun formatDate(epochDay: Long): String = LocalDate.ofEpochDay(epochDay).toString()
 
 fun String.toAmountOrNull(): Double? = replace(",", "").trim().toDoubleOrNull()
