@@ -106,6 +106,33 @@ class YahooHistoryTest {
     }
 }
 
+class YahooHistoryGapTest {
+    @Test
+    fun gapDates_areTheDaysWithNullCloseAndNullVolume() {
+        // 實際案例：0050 在 2026/11/3 的日線整天是 null
+        val json = """
+            {"chart":{"result":[{"meta":{"gmtoffset":28800},
+            "timestamp":[1793235600,1793322000,1793408400],
+            "indicators":{"quote":[{"close":[104.1,null,98.35],"volume":[142806486,null,354463020]}]}}]}}
+        """.trimIndent()
+        val gaps = YahooApi.parseHistoryGaps(json)
+        org.junit.Assert.assertEquals(listOf(java.time.LocalDate.of(2026, 10, 30).toEpochDay()), gaps)
+    }
+
+    @Test
+    fun intradayCloses_takeLastValidPricePerDay() {
+        // 10/30 兩筆（最後一筆 null 要略過），10/31 一筆；時間故意亂序
+        val json = """
+            {"chart":{"result":[{"meta":{"gmtoffset":28800},
+            "timestamp":[1793322600,1793322000,1793322900,1793408400],
+            "indicators":{"quote":[{"close":[100.6,100.1,null,99.0]}]}}]}}
+        """.trimIndent()
+        val m = YahooApi.parseIntradayCloses(json)
+        org.junit.Assert.assertEquals(100.6, m[java.time.LocalDate.of(2026, 10, 30).toEpochDay()]!!, 0.0)
+        org.junit.Assert.assertEquals(99.0, m[java.time.LocalDate.of(2026, 10, 31).toEpochDay()]!!, 0.0)
+    }
+}
+
 class YahooHighTest {
     @Test
     fun parseHigh_picksHighestDailyHighAndSkipsHolidays() {

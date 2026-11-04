@@ -40,7 +40,52 @@ object YahooApi {
         val period2 = (to + 2) * 86_400
         val url = CHART_URL + URLEncoder.encode(yahooSymbol, "UTF-8") +
             "?period1=$period1&period2=$period2&interval=1d"
-        Http.get(url)?.let { parseHistory(it) }
+        val json = Http.get(url) ?: return@withContext null
+        val bars = parseHistory(json) ?: return@withContext null
+        // Yahoo 的日線偶爾整天都是 null（ETF 常見，例如 0050 在 2026/11/3），但盤中資料還在：用當天最後一筆補上
+        val have = bars.map { it.date }.toSet()
+        val gaps = parseHistoryGaps(json).filter { it !in have }
+        if (gaps.isEmpty()) return@withContext bars
+        val today = java.time.LocalDate.now().toEpochDay()
+        val usable = gaps.filter { today - it <= INTRADAY_DAYS }
+        if (usable.isEmpty()) return@withContext bars
+        val intraUrl = CHART_URL + URLEncoder.encode(yahooSymbol, "UTF-8") +
+            "?period1=${(usable.min() - 1) * 86_400}&period2=${(usable.max() + 2) * 86_400}&interval=5m"
+        val closes = Http.get(intraUrl)?.let { parseIntradayCloses(it) }.orEmpty()
+        val filled = usable.mapNotNull { d -> closes[d]?.let { Bar(d, it) } }
+        (bars + filled).sortedBy { it.date }
+    }
+
+    /** 5 分鐘線最多只能查近 60 天 */
+    private const val INTRADAY_DAYS = 55L
+
+    /** 日線中「有時間點但收盤價是 null」的日期（Yahoo 漏資料的日子，不含成交量 0 的休市補列） */
+    fun parseHistoryGaps(json: String): List<Long> {
+        val result = JSONObject(json).optJSONObject("chart")?.optJSONArray("result")?.optJSONObject(0) ?: return emptyList()
+        val offset = result.optJSONObject("meta")?.optLong("gmtoffset") ?: 0L
+        val timestamps = result.optJSONArray("timestamp") ?: return emptyList()
+        val closes = result.optJSONObject("indicators")?.optJSONArray("quote")?.optJSONObject(0)?.optJSONArray("close")
+            ?: return emptyList()
+        return (0 until minOf(timestamps.length(), closes.length()))
+            .filter { closes.isNull(it) }
+            .map { Math.floorDiv(timestamps.getLong(it) + offset, 86_400L) }
+            .distinct()
+    }
+
+    /** 盤中資料每天最後一筆有效價格（當作該日收盤價） */
+    fun parseIntradayCloses(json: String): Map<Long, Double> {
+        val result = JSONObject(json).optJSONObject("chart")?.optJSONArray("result")?.optJSONObject(0) ?: return emptyMap()
+        val offset = result.optJSONObject("meta")?.optLong("gmtoffset") ?: 0L
+        val timestamps = result.optJSONArray("timestamp") ?: return emptyMap()
+        val closes = result.optJSONObject("indicators")?.optJSONArray("quote")?.optJSONObject(0)?.optJSONArray("close")
+            ?: return emptyMap()
+        val out = sortedMapOf<Long, Double>()
+        val order = (0 until minOf(timestamps.length(), closes.length())).sortedBy { timestamps.getLong(it) }
+        for (i in order) {
+            if (closes.isNull(i)) continue
+            out[Math.floorDiv(timestamps.getLong(i) + offset, 86_400L)] = closes.getDouble(i)
+        }
+        return out
     }
 
     /** 近 years 年的最高價（日線最高價） */
