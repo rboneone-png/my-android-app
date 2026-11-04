@@ -36,9 +36,10 @@ object Portfolio {
         val id: Long
     }
 
+    // 同一天：先股利、再買進、最後賣出（當沖或當天買了又賣不會被算成股數不足）
     private data class TradeEvent(val trade: Trade) : Event {
         override val date get() = trade.date
-        override val order get() = 1
+        override val order get() = if (trade.type == TradeType.BUY) 1 else 2
         override val id get() = trade.id
     }
 
@@ -131,6 +132,30 @@ object Portfolio {
         return Holding(market, symbol, name, shares, cost, realized, dividendsSinceOpen, dividendIncome)
     }
 
+    /**
+     * 逐日檢查股數：任何一天的賣出股數超過當天可賣的股數（之前持有 + 當天買進 + 配股），
+     * 回傳第一個不足的日子；沒有問題回傳 null。補登過去日期的賣出時，只看「總持股夠不夠」會漏掉。
+     */
+    fun firstShortage(
+        trades: List<Trade>,
+        dividends: List<Dividend>,
+        market: Market,
+        symbol: String,
+    ): ShareShortage? {
+        val ts = trades.filter { it.market == market && it.symbol == symbol }
+        val ds = dividends.filter { it.market == market && it.symbol == symbol }
+        var balance = 0.0
+        for (day in (ts.map { it.date } + ds.map { it.date }).distinct().sorted()) {
+            val bought = ts.filter { it.date == day && it.type == TradeType.BUY }.sumOf { it.shares }
+            val stock = ds.filter { it.date == day }.sumOf { it.stockShares }
+            val sold = ts.filter { it.date == day && it.type == TradeType.SELL }.sumOf { it.shares }
+            val available = balance + bought + stock
+            if (sold > available + EPSILON) return ShareShortage(day, maxOf(available, 0.0), sold)
+            balance = available - sold
+        }
+        return null
+    }
+
     /** 計算某檔股票目前持有股數（含配股），可排除正在編輯的那筆交易 */
     fun sharesHeld(
         trades: List<Trade>,
@@ -148,6 +173,16 @@ object Portfolio {
         trades.filter { it.date <= date }.sumOf { if (it.type == TradeType.BUY) it.shares else -it.shares } +
             dividends.filter { it.date <= date }.sumOf { it.stockShares }
 }
+
+/** 某一天賣出的股數超過當天可賣的股數 */
+data class ShareShortage(
+    /** LocalDate.toEpochDay() */
+    val date: Long,
+    /** 當天可賣的股數（之前持有 + 當天買進 + 配股） */
+    val available: Double,
+    /** 當天賣出的股數合計 */
+    val sold: Double,
+)
 
 /** 一筆賣出的已實現損益 */
 data class RealizedEvent(

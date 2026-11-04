@@ -121,6 +121,26 @@ fun TradeEditScreen(vm: AppViewModel, tradeId: Long, onDone: () -> Unit) {
         if (!taxManual) taxText = plainNumber(auto.tax)
     }
 
+    // 逐日檢查股數：賣出（或改動既有交易）後，任何一天的賣出股數超過當天持有就不能儲存
+    val shortageText: String? = run {
+        val sym = symbol.trim().uppercase()
+        val qty = shares
+        if (sym.isEmpty() || qty == null || qty <= 0 || (isNew && type != TradeType.SELL)) return@run null
+        val candidate = Trade(
+            id = tradeId, market = market, symbol = sym, name = "", type = type, date = date,
+            shares = qty, price = price ?: 1.0, fee = 0.0, tax = 0.0,
+        )
+        val after = trades.filter { it.id != tradeId } + candidate
+        val s = Portfolio.firstShortage(after, dividends, market, sym) ?: return@run null
+        val action = if (isNew) "新增" else "儲存"
+        if (type == TradeType.SELL && s.date == date) {
+            "股數不足：${formatDate(date)} 當日可賣 ${formatShares(s.available)} 股，賣出合計 ${formatShares(s.sold)} 股，無法$action"
+        } else {
+            "$action 後會讓 ${formatDate(s.date)} 的賣出股數不足（當日持有 ${formatShares(s.available)} 股，" +
+                "賣出 ${formatShares(s.sold)} 股），無法$action"
+        }
+    }
+
     fun save() {
         val sym = symbol.trim().uppercase()
         val fee = feeText.toAmountOrNull() ?: 0.0
@@ -130,8 +150,7 @@ fun TradeEditScreen(vm: AppViewModel, tradeId: Long, onDone: () -> Unit) {
             shares == null || shares <= 0 -> "請輸入正確的股數"
             price == null || price <= 0 -> "請輸入正確的價格"
             fee < 0 || tax < 0 -> "手續費和稅金不能是負數"
-            type == TradeType.SELL && shares > Portfolio.sharesHeld(trades, market, sym, tradeId, dividends) + 1e-9 ->
-                "賣出股數超過目前持有的 ${formatShares(Portfolio.sharesHeld(trades, market, sym, tradeId, dividends))} 股"
+            shortageText != null -> shortageText
             else -> null
         }
         if (error != null) return
@@ -268,8 +287,8 @@ fun TradeEditScreen(vm: AppViewModel, tradeId: Long, onDone: () -> Unit) {
                 label = { Text("備註（選填）") },
                 modifier = Modifier.fillMaxWidth(),
             )
-            error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-            Button(onClick = ::save, modifier = Modifier.fillMaxWidth()) { Text("儲存") }
+            (shortageText ?: error)?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+            Button(onClick = ::save, enabled = shortageText == null, modifier = Modifier.fillMaxWidth()) { Text("儲存") }
         }
     }
 
@@ -288,12 +307,24 @@ fun TradeEditScreen(vm: AppViewModel, tradeId: Long, onDone: () -> Unit) {
     }
 
     if (confirmDelete) {
+        // 刪掉買進後，後面的賣出可能股數不足，不能刪
+        val deleteShortage = original?.let { o ->
+            Portfolio.firstShortage(trades.filter { it.id != tradeId }, dividends, o.market, o.symbol)
+        }
         AlertDialog(
             onDismissRequest = { confirmDelete = false },
             title = { Text("刪除這筆交易？") },
-            text = { Text("刪除後無法復原。") },
+            text = {
+                Text(
+                    if (deleteShortage != null) {
+                        "刪除後會讓 ${formatDate(deleteShortage.date)} 的賣出股數不足（當日持有 ${formatShares(deleteShortage.available)} 股，" +
+                            "賣出 ${formatShares(deleteShortage.sold)} 股），無法刪除。請先修改或刪除那筆賣出。"
+                    } else "刪除後無法復原。",
+                    color = if (deleteShortage != null) MaterialTheme.colorScheme.error else androidx.compose.ui.graphics.Color.Unspecified,
+                )
+            },
             confirmButton = {
-                TextButton(onClick = {
+                TextButton(enabled = deleteShortage == null, onClick = {
                     original?.let { vm.deleteTrade(it) }
                     confirmDelete = false
                     onDone()
