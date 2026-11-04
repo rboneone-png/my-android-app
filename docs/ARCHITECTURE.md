@@ -1,4 +1,4 @@
-# 股票記帳 — 架構說明（1.11.0）
+# 股票記帳 — 架構說明（1.12.0）
 
 ## 總覽
 
@@ -44,12 +44,12 @@ app/src/main/java/com/rboneone/stockrecord/
 
 ## 資料儲存
 
-每個帳號一個獨立的 SQLite 資料庫 `stock_<帳號ID>.db`（Room，版本 9）與一份設定檔 `settings_<帳號ID>`。
+每個帳號一個獨立的 SQLite 資料庫 `stock_<帳號ID>.db`（Room，版本 10）與一份設定檔 `settings_<帳號ID>`。
 
 | 資料表 | 內容 |
 |---|---|
 | `trades` | 買賣紀錄：市場、代號、名稱、買／賣、日期、股數、價格、手續費、交易稅 |
-| `dividends` | 股利：現金股利、扣稅（二代健保／美股預扣）、匯費、配股股數 |
+| `dividends` | 股利：每股股利、現金股利（= 每股股利 × 當天持有股數）、扣稅（二代健保／美股預扣）、匯費、配股股數 |
 | `stock_category` | 每檔股票的資產分類：原型／正二／類現金／其他 |
 | `price_alerts` | 股價通知條件與上次通知的交易日 |
 | `pledges` | 質押：股數、金額、利率、日期 |
@@ -62,14 +62,15 @@ app/src/main/java/com/rboneone/stockrecord/
 設定檔（SharedPreferences）：手續費設定、股價刷新秒數、現金金額、庫存股排序、質押「包含正二」、同步設定、上次質押通知日。
 帳號清單另存於 `accounts`（只存加鹽雜湊後的密碼）。
 
-舊版資料庫升級（v1→v9）的 Migration 保留在 `AppDatabase.kt`，讓任何舊版本都能直接覆蓋安裝；
-`app/schemas/.../9.json` 是 Room 匯出的最終資料表結構。
+舊版資料庫升級（v1→v10）的 Migration 保留在 `AppDatabase.kt`，讓任何舊版本都能直接覆蓋安裝；
+`app/schemas/.../10.json` 是 Room 匯出的最終資料表結構。
 
 ## 主要計算（domain/）
 
 | 檔案 | 內容 |
 |---|---|
 | `FeeCalculator` | 台股手續費（0.1425% × 折扣，最低 20 元）、證交稅、股利扣稅建議值 |
+| `DividendMath` | 現金股利總額 = 每股股利 × 發放日持有股數；舊紀錄反推每股股利 |
 | `Portfolio` | 平均成本法：持股、成本、已實現損益、股息、每筆賣出的已實現損益；逐日檢查賣出股數是否足夠（`firstShortage`） |
 | `Valuation` | 加上報價：市值、未實現損益（預扣賣出費用）、總損益、日損益、市場彙總、自訂排序 |
 | `Allocation` | 資產配置：A 原型 + B 正二 + C 類現金 + D 現金（= 帳務管理的當日可用餘額）+ E 其他；曝險 = A + 2B |

@@ -27,7 +27,10 @@ class BackupTest {
                 Trade(5, Market.TW, "2330", "台積電", TradeType.SELL, 20_000, 1000.0, 600.5, 239.0, 900.0, TaxType.DAY_TRADE, "備註"),
                 Trade(6, Market.US, "BRK.B", "Berkshire", TradeType.BUY, 20_001, 1.5, 500.25, 0.0, 0.0),
             ),
-            dividends = listOf(Dividend(7, Market.TW, "0056", "元大高股息", 20_002, 25_000.0, 527.0, 10.0, 0.0, "")),
+            dividends = listOf(
+                Dividend(7, Market.TW, "0056", "元大高股息", 20_002, 25_000.0, 527.0, 10.0, 0.0, "", perShare = 0.5),
+                Dividend(8, Market.TW, "0050", "元大台灣50", 20_003, 10_000.0, 0.0, 0.0, 0.0, ""),   // 舊紀錄沒有每股股利
+            ),
             fees = FeeSettings(0.3, 1.0, 2.5, 0.1),
             categories = listOf(
                 StockCategory(Market.TW, "0050", AssetCategory.CORE),
@@ -66,5 +69,12 @@ class BackupTest {
         val item = HighWatchItem(1, Market.TW, "0050", "元大台灣50", 0, highPrice = 80.0, highDate = 20_000, highUpdatedAt = 5)
         val restored = Backup.parse(Backup.serialize(BackupData(0, emptyList(), emptyList(), FeeSettings(), highWatch = listOf(item))))
         assertEquals(item.copy(highPrice = null, highDate = null, highUpdatedAt = 0), restored.highWatch.single())
+    }
+
+    @Test
+    fun oldDividendWithoutPerShare_parsesAsNull() {
+        val json = """{"version":1,"exportedAt":1,"trades":[],"dividends":[{"id":1,"market":"TW","symbol":"0056","name":"x","date":20000,
+            "cashAmount":1000.0,"tax":0.0,"fee":0.0,"stockShares":0.0,"note":""}]}"""
+        assertEquals(null, Backup.parse(json).dividends.single().perShare)
     }
 }

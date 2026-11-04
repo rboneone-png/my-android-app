@@ -7,7 +7,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [Trade::class, StockInfo::class, Quote::class, Dividend::class, StockCategory::class, PriceAlert::class, Pledge::class, WatchItem::class, HighWatchItem::class, CashFlow::class],
-    version = 9,
+    version = 10,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -112,6 +112,13 @@ abstract class AppDatabase : RoomDatabase() {
                         "`market` TEXT NOT NULL, `type` TEXT NOT NULL, `date` INTEGER NOT NULL, " +
                         "`amount` REAL NOT NULL, `note` TEXT NOT NULL)"
                 )
+            }
+        }
+
+        /** v9 → v10：股利新增「每股股利」欄位（舊紀錄為空） */
+        val MIGRATION_9_10 = object : Migration(9, 10) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `dividends` ADD COLUMN `perShare` REAL")
             }
         }
     }

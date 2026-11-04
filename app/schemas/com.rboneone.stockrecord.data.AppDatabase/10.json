@@ -1,8 +1,8 @@
 {
   "formatVersion": 1,
   "database": {
-    "version": 9,
-    "identityHash": "f32fa71b450ede314787af40765ca9e0",
+    "version": 10,
+    "identityHash": "ebfdbff486edf3be78c7218d1d4ffc23",
     "entities": [
       {
         "tableName": "trades",
@@ -188,7 +188,7 @@
       },
       {
         "tableName": "dividends",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `market` TEXT NOT NULL, `symbol` TEXT NOT NULL, `name` TEXT NOT NULL, `date` INTEGER NOT NULL, `cashAmount` REAL NOT NULL, `tax` REAL NOT NULL, `fee` REAL NOT NULL, `stockShares` REAL NOT NULL, `note` TEXT NOT NULL)",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `market` TEXT NOT NULL, `symbol` TEXT NOT NULL, `name` TEXT NOT NULL, `date` INTEGER NOT NULL, `cashAmount` REAL NOT NULL, `tax` REAL NOT NULL, `fee` REAL NOT NULL, `stockShares` REAL NOT NULL, `note` TEXT NOT NULL, `perShare` REAL)",
         "fields": [
           {
             "fieldPath": "id",
@@ -249,6 +249,12 @@
             "columnName": "note",
             "affinity": "TEXT",
             "notNull": true
+          },
+          {
+            "fieldPath": "perShare",
+            "columnName": "perShare",
+            "affinity": "REAL",
+            "notNull": false
           }
         ],
         "primaryKey": {
@@ -577,7 +583,7 @@
     "views": [],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'f32fa71b450ede314787af40765ca9e0')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'ebfdbff486edf3be78c7218d1d4ffc23')"
     ]
   }
 }

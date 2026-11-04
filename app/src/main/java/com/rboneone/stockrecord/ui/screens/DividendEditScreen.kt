@@ -36,11 +36,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.rboneone.stockrecord.data.Dividend
 import com.rboneone.stockrecord.data.Market
+import com.rboneone.stockrecord.domain.DividendMath
 import com.rboneone.stockrecord.domain.FeeCalculator
 import com.rboneone.stockrecord.domain.Portfolio
 import com.rboneone.stockrecord.ui.AppViewModel
@@ -67,7 +69,7 @@ fun DividendEditScreen(vm: AppViewModel, dividendId: Long, onDone: () -> Unit) {
     var name by rememberSaveable { mutableStateOf("") }
     var nameManual by rememberSaveable { mutableStateOf(!isNew) }
     var date by rememberSaveable { mutableLongStateOf(LocalDate.now().toEpochDay()) }
-    var cashText by rememberSaveable { mutableStateOf("") }
+    var perShareText by rememberSaveable { mutableStateOf("") }
     var taxText by rememberSaveable { mutableStateOf("") }
     var taxManual by rememberSaveable { mutableStateOf(!isNew) }
     var feeText by rememberSaveable { mutableStateOf("") }
@@ -84,7 +86,8 @@ fun DividendEditScreen(vm: AppViewModel, dividendId: Long, onDone: () -> Unit) {
         original = d
         if (!loaded) {
             market = d.market; symbol = d.symbol; name = d.name; date = d.date
-            cashText = plainNumber(d.cashAmount); taxText = plainNumber(d.tax); feeText = plainNumber(d.fee)
+            perShareText = d.perShare?.let { plainNumber(it) }.orEmpty()
+            taxText = plainNumber(d.tax); feeText = plainNumber(d.fee)
             stockText = plainNumber(d.stockShares); note = d.note
             loaded = true
         }
@@ -92,18 +95,35 @@ fun DividendEditScreen(vm: AppViewModel, dividendId: Long, onDone: () -> Unit) {
 
     val nameHint = rememberStockNameLookup(vm, market, symbol, enabled = loaded && !nameManual) { name = it }
 
-    val cash = cashText.toAmountOrNull()
-    val autoTax = FeeCalculator.dividendTax(market, cash ?: 0.0, settings)
-    LaunchedEffect(autoTax, taxManual) {
-        if (!taxManual) taxText = plainNumber(autoTax)
-    }
-
     val sym = symbol.trim().uppercase()
+    // 發放日當天持有股數（含當天買進與已入帳的配股，不含這筆自己的配股）
     val heldShares = Portfolio.sharesOn(
         trades.filter { it.market == market && it.symbol == sym },
         dividends.filter { it.market == market && it.symbol == sym && it.id != dividendId },
         date,
     )
+
+    // 舊紀錄沒有每股股利：持股資料載入後，由現金股利總額反推出來給使用者看（記下反推時的數字與持股）
+    var legacy by remember { mutableStateOf<Pair<String, Double>?>(null) }
+    LaunchedEffect(original, heldShares) {
+        val o = original ?: return@LaunchedEffect
+        if (o.perShare == null && perShareText.isEmpty()) {
+            DividendMath.perShareFrom(o.cashAmount, heldShares)?.let {
+                perShareText = plainNumber(it)
+                legacy = perShareText to heldShares
+            }
+        }
+    }
+
+    val perShare = perShareText.toAmountOrNull()
+    // 沒改動反推出來的每股股利與持股，就沿用原本的現金股利，避免四捨五入的小誤差改掉舊金額
+    val keepLegacyCash = original != null && legacy != null && perShareText == legacy!!.first && heldShares == legacy!!.second
+    // 現金股利總額 = 每股股利 × 當天持有股數
+    val cash: Double? = if (keepLegacyCash) original!!.cashAmount else perShare?.let { DividendMath.cashTotal(it, heldShares) }
+    val autoTax = FeeCalculator.dividendTax(market, cash ?: 0.0, settings)
+    LaunchedEffect(autoTax, taxManual) {
+        if (!taxManual) taxText = plainNumber(autoTax)
+    }
 
     fun save() {
         val tax = taxText.toAmountOrNull() ?: 0.0
@@ -112,8 +132,10 @@ fun DividendEditScreen(vm: AppViewModel, dividendId: Long, onDone: () -> Unit) {
         val cashAmount = cash ?: 0.0
         error = when {
             sym.isEmpty() -> "請輸入股票代號"
-            cashAmount < 0 || tax < 0 || fee < 0 || stock < 0 -> "金額和股數不能是負數"
-            cashAmount <= 0 && stock <= 0 -> "請輸入現金股利或配股股數"
+            (perShare ?: 0.0) < 0 || tax < 0 || fee < 0 || stock < 0 -> "金額和股數不能是負數"
+            (perShare ?: 0.0) > 0 && heldShares <= 0 ->
+                "${formatDate(date)} 當天沒有持有這檔股票，無法計算現金股利，請確認發放日與買賣紀錄"
+            cashAmount <= 0 && stock <= 0 -> "請輸入每股股利或配股股數"
             tax + fee > cashAmount -> "扣款金額不能超過現金股利"
             else -> null
         }
@@ -130,6 +152,7 @@ fun DividendEditScreen(vm: AppViewModel, dividendId: Long, onDone: () -> Unit) {
                 fee = fee,
                 stockShares = stock,
                 note = note.trim(),
+                perShare = if (keepLegacyCash) null else perShare,
             )
         )
         onDone()
@@ -185,7 +208,6 @@ fun DividendEditScreen(vm: AppViewModel, dividendId: Long, onDone: () -> Unit) {
                 onValueChange = {},
                 readOnly = true,
                 label = { Text("發放日") },
-                supportingText = if (sym.isNotEmpty()) ({ Text("當天持有 ${formatShares(heldShares)} 股") }) else null,
                 trailingIcon = {
                     IconButton(onClick = { showDatePicker = true }) {
                         Icon(Icons.Filled.DateRange, contentDescription = "選擇日期")
@@ -193,11 +215,24 @@ fun DividendEditScreen(vm: AppViewModel, dividendId: Long, onDone: () -> Unit) {
                 },
                 modifier = Modifier.fillMaxWidth(),
             )
+            // 每股股利：使用者輸入
             NumberField(
-                cashText, { cashText = it },
-                if (market == Market.TW) "現金股利總額（元）" else "現金股利總額（美元）",
-                supporting = "稅前金額",
+                perShareText, { perShareText = it; error = null },
+                if (market == Market.TW) "每股股利（元）" else "每股股利（美元）",
+                supporting = "沒有現金股利請留空",
                 modifier = Modifier.fillMaxWidth(),
+            )
+            // 當天持有股股數：自動帶入
+            AutoField(
+                "當天持有股股數", if (sym.isEmpty()) "--" else formatShares(heldShares),
+                supporting = if (sym.isNotEmpty() && heldShares <= 0) "發放日當天沒有持有這檔股票" else "依買賣紀錄自動計算",
+                isError = sym.isNotEmpty() && heldShares <= 0 && (perShare ?: 0.0) > 0,
+            )
+            // 現金股利總額 = 每股股利 × 當天持有股股數
+            AutoField(
+                if (market == Market.TW) "現金股利總額（元）" else "現金股利總額（美元）",
+                cash?.let { formatMoney(market, it) } ?: "--",
+                supporting = "= 每股股利 × 當天持有股股數（稅前金額）",
             )
             NumberField(
                 taxText, { taxText = it; taxManual = true },
@@ -264,4 +299,20 @@ fun DividendEditScreen(vm: AppViewModel, dividendId: Long, onDone: () -> Unit) {
             dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("取消") } },
         )
     }
+}
+
+/** 自動帶入、不能修改的欄位 */
+@Composable
+private fun AutoField(label: String, value: String, supporting: String? = null, isError: Boolean = false) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = {},
+        readOnly = true,
+        singleLine = true,
+        isError = isError,
+        label = { Text(label) },
+        supportingText = supporting?.let { { Text(it) } },
+        textStyle = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium),
+        modifier = Modifier.fillMaxWidth(),
+    )
 }

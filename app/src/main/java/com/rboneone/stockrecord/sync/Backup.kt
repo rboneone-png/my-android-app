@@ -58,6 +58,7 @@ object Backup {
                     .put("id", it.id).put("market", it.market.name).put("symbol", it.symbol).put("name", it.name)
                     .put("date", it.date).put("cashAmount", it.cashAmount).put("tax", it.tax).put("fee", it.fee)
                     .put("stockShares", it.stockShares).put("note", it.note)
+                    .also { o -> it.perShare?.let { p -> o.put("perShare", p) } }
             )
         }
         val fees = JSONObject()
@@ -162,6 +163,7 @@ object Backup {
                     fee = o.getDouble("fee"),
                     stockShares = o.getDouble("stockShares"),
                     note = o.optString("note"),
+                    perShare = if (o.has("perShare") && !o.isNull("perShare")) o.getDouble("perShare") else null,
                 )
             }
         } ?: emptyList()
