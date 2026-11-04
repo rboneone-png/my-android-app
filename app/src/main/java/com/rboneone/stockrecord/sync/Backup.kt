@@ -18,6 +18,9 @@ import com.rboneone.stockrecord.domain.FeeSettings
 import org.json.JSONArray
 import org.json.JSONObject
 
+/** 備份裡的帳號資料：密碼只存加鹽雜湊值，新安裝時用它驗證密碼 */
+data class BackupAccount(val username: String, val salt: String, val passwordHash: String, val method: String)
+
 data class BackupData(
     val exportedAt: Long,
     val trades: List<Trade>,
@@ -35,9 +38,11 @@ data class BackupData(
     val highWatch: List<HighWatchItem> = emptyList(),
     /** 帳務管理的現金存入／領出 */
     val cashFlows: List<CashFlow> = emptyList(),
+    /** 舊版備份沒有帳號資料，為 null */
+    val account: BackupAccount? = null,
 )
 
-/** 備份檔格式（JSON），密碼不會放進備份 */
+/** 備份檔格式（JSON），只含密碼的加鹽雜湊值，不含明碼 */
 object Backup {
     private const val VERSION = 1
 
@@ -113,6 +118,12 @@ object Backup {
         }
         return JSONObject()
             .put("version", VERSION)
+            .also { o ->
+                data.account?.let {
+                    o.put("account", JSONObject().put("username", it.username).put("salt", it.salt)
+                        .put("hash", it.passwordHash).put("method", it.method))
+                }
+            }
             .put("cashFlows", cashFlows)
             .put("highWatch", highWatch)
             .put("watchlist", watch)
@@ -271,6 +282,9 @@ object Backup {
         return BackupData(
             root.optLong("exportedAt"), trades, dividends, fees, categories, root.optDouble("cash", 0.0), alerts, pledges,
             holdingOrder, watchlist, highWatch, cashFlows,
+            root.optJSONObject("account")?.let {
+                BackupAccount(it.getString("username"), it.getString("salt"), it.getString("hash"), it.optString("method", "PASSWORD"))
+            },
         )
     }
 }

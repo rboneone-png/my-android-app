@@ -65,6 +65,13 @@ class AccountStore(context: Context) {
         return account
     }
 
+    /** 從備份檔帶入既有帳號（密碼雜湊沿用，不需重設密碼） */
+    fun import(username: String, salt: String, hash: String, method: AuthMethod): Account {
+        val account = Account(UUID.randomUUID().toString(), username.trim(), salt, hash, method)
+        save(_accounts.value + account)
+        return account
+    }
+
     fun update(account: Account) = save(_accounts.value.map { if (it.id == account.id) account else it })
 
     private fun load(): List<Account> {

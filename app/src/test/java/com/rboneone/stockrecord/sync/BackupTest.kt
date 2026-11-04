@@ -77,4 +77,12 @@ class BackupTest {
             "cashAmount":1000.0,"tax":0.0,"fee":0.0,"stockShares":0.0,"note":""}]}"""
         assertEquals(null, Backup.parse(json).dividends.single().perShare)
     }
+
+    @Test
+    fun accountRoundTrip_andOldBackupHasNone() {
+        val acc = BackupAccount("小明", "c2FsdA==", "aGFzaA==", "FINGERPRINT")
+        val data = Backup.parse(Backup.serialize(BackupData(1, emptyList(), emptyList(), FeeSettings(), account = acc)))
+        assertEquals(acc, data.account)
+        assertEquals(null, Backup.parse("""{"version":1,"exportedAt":1,"trades":[],"dividends":[]}""").account)
+    }
 }

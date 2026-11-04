@@ -72,6 +72,14 @@ class StockApp : Application() {
         return account
     }
 
+    /** 用備份檔裡的帳號資料建立本機帳號 */
+    fun importAccount(username: String, salt: String, hash: String, method: AuthMethod): Account {
+        val isFirst = accountStore.accounts.value.isEmpty()
+        val account = accountStore.import(username, salt, hash, method)
+        if (isFirst) adoptLegacyData(account.id)
+        return account
+    }
+
     /** 舊版沒有帳號功能，把原本的資料交給第一個建立的帳號 */
     private fun adoptLegacyData(userId: String) {
         val legacy = getDatabasePath(LEGACY_DB)

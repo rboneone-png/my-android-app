@@ -59,9 +59,9 @@ private const val MIN_PASSWORD = 4
 @Composable
 fun LoginScreen(app: StockApp) {
     val accounts by app.accountStore.accounts.collectAsStateWithLifecycle()
-    // 沒有帳號時只能新增
+    // 0 登入、1 新增、2 備份檔登入。沒有帳號時不能用「登入」，預設停在「新增」
     var tab by rememberSaveable { mutableIntStateOf(if (accounts.isEmpty()) 1 else 0) }
-    LaunchedEffect(accounts.isEmpty()) { if (accounts.isEmpty()) tab = 1 }
+    LaunchedEffect(accounts.isEmpty()) { if (accounts.isEmpty() && tab == 0) tab = 1 }
 
     Surface(Modifier.fillMaxSize()) {
         Column(
@@ -85,9 +85,14 @@ fun LoginScreen(app: StockApp) {
                     text = { Text("登入") },
                 )
                 Tab(selected = tab == 1, onClick = { tab = 1 }, text = { Text("新增") })
+                Tab(selected = tab == 2, onClick = { tab = 2 }, text = { Text("備份檔登入") })
             }
             Column(Modifier.padding(24.dp)) {
-                if (tab == 0) LoginForm(app, accounts) else CreateForm(app, isFirst = accounts.isEmpty())
+                when (tab) {
+                    0 -> LoginForm(app, accounts)
+                    1 -> CreateForm(app, isFirst = accounts.isEmpty())
+                    else -> BackupLoginForm(app)
+                }
             }
         }
     }
@@ -255,5 +260,93 @@ private fun CreateForm(app: StockApp, isFirst: Boolean) {
             enabled = !busy,
             modifier = Modifier.fillMaxWidth(),
         ) { Text(if (busy) "建立中…" else "建立帳號") }
+    }
+}
+
+/** 新安裝時，用舊手機備份的檔案登入：選備份檔、輸入原本的密碼，帳號與資料一起帶回來 */
+@Composable
+private fun BackupLoginForm(app: StockApp) {
+    val scope = rememberCoroutineScope()
+    var uri by remember { mutableStateOf<android.net.Uri?>(null) }
+    var data by remember { mutableStateOf<com.rboneone.stockrecord.sync.BackupData?>(null) }
+    var password by rememberSaveable { mutableStateOf("") }
+    var error by remember { mutableStateOf<String?>(null) }
+    var busy by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+
+    val picker = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.OpenDocument(),
+    ) { picked ->
+        if (picked == null) return@rememberLauncherForActivityResult
+        uri = picked
+        scope.launch {
+            val parsed = withContext(Dispatchers.IO) {
+                runCatching {
+                    val text = context.contentResolver.openInputStream(picked)!!.use { it.readBytes().toString(Charsets.UTF_8) }
+                    com.rboneone.stockrecord.sync.Backup.parse(text)
+                }.getOrNull()
+            }
+            data = parsed
+            error = when {
+                parsed == null -> "這不是股票記帳的備份檔"
+                parsed.account == null -> "這份備份是舊版產生的，沒有帳號資料。請改用「新增」建立同名帳號，登入後到設定頁按「還原」。"
+                else -> null
+            }
+        }
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text(
+            "在新手機或重新安裝後，選擇舊手機備份出來的檔案（可從 Google 雲端硬碟選取），輸入原本的密碼，就能帶回原本的帳號與資料。",
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        OutlinedButton(
+            onClick = { picker.launch(arrayOf("application/json", "application/octet-stream", "text/plain")) },
+            enabled = !busy,
+            modifier = Modifier.fillMaxWidth(),
+        ) { Text(if (uri == null) "選擇備份檔" else "重新選擇備份檔") }
+        val account = data?.account
+        if (account != null) {
+            Text("帳號：${account.username}", style = MaterialTheme.typography.titleSmall)
+            OutlinedTextField(
+                value = password,
+                onValueChange = { password = it; error = null },
+                label = { Text("原本的密碼") },
+                singleLine = true,
+                visualTransformation = PasswordVisualTransformation(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+        error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+        Button(
+            onClick = {
+                val backup = data ?: return@Button
+                val acc = backup.account ?: return@Button
+                if (app.accountStore.usernameTaken(acc.username)) {
+                    error = "這支手機已經有同名帳號「${acc.username}」，請直接用「登入」"
+                    return@Button
+                }
+                busy = true
+                scope.launch {
+                    val ok = withContext(Dispatchers.Default) {
+                        val probe = Account("", acc.username, acc.salt, acc.passwordHash, AuthMethod.PASSWORD)
+                        PasswordHasher.verify(password, probe)
+                    }
+                    if (!ok) {
+                        busy = false
+                        error = "密碼錯誤"
+                        return@launch
+                    }
+                    val method = runCatching { AuthMethod.valueOf(acc.method) }.getOrDefault(AuthMethod.PASSWORD)
+                    val created = app.importAccount(acc.username, acc.salt, acc.passwordHash, method)
+                    runCatching { app.syncManager.restoreInto(created.id, backup) }
+                    busy = false
+                    app.login(created)
+                }
+            },
+            enabled = !busy && data?.account != null && password.isNotEmpty(),
+            modifier = Modifier.fillMaxWidth(),
+        ) { Text(if (busy) "還原中…" else "登入並還原資料") }
     }
 }

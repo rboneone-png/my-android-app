@@ -39,6 +39,7 @@ class SyncManager(private val app: StockApp) {
             watchlist = db.watchDao().getAll(),
             highWatch = db.highWatchDao().getAll(),
             cashFlows = db.cashFlowDao().getAll(),
+            account = app.accountStore.find(userId)?.let { BackupAccount(it.username, it.salt, it.passwordHash, it.method.name) },
         )
     }
 
@@ -80,6 +81,9 @@ class SyncManager(private val app: StockApp) {
         val time = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmm"))
         return "股票記帳備份_${username}_$time.json"
     }
+
+    /** 新安裝時用備份檔登入：資料還原到剛建立的帳號 */
+    suspend fun restoreInto(userId: String, data: BackupData): Int = apply(userId, data)
 
     /** 用備份取代手機上這個帳號的資料 */
     private suspend fun apply(userId: String, data: BackupData): Int {
