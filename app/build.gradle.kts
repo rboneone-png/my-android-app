@@ -13,8 +13,8 @@ android {
         applicationId = "com.rboneone.stockrecord"
         minSdk = 26
         targetSdk = 35
-        versionCode = 38
-        versionName = "1.15.0"
+        versionCode = 39
+        versionName = "1.15.1"
     }
 
     signingConfigs {
@@ -57,6 +57,9 @@ ksp {
 dependencies {
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("androidx.activity:activity-compose:1.9.3")
+    // MainActivity 是 FragmentActivity；fragment 太舊（biometric 帶進來的 1.2.5）會讓 ActivityResult（選檔案）閃退，
+    // 以前是 Google 登入函式庫剛好帶了新版，所以要明確指定
+    implementation("androidx.fragment:fragment-ktx:1.8.5")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
     implementation("androidx.navigation:navigation-compose:2.8.5")

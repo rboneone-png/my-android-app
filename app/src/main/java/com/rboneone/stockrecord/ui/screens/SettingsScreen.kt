@@ -9,6 +9,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
@@ -206,25 +208,34 @@ private fun SyncSection(vm: AppViewModel) {
         }
         Hint("按「備份」後，在檔案畫面左上角選單選「雲端硬碟」，即可把備份檔存到 Google 雲端硬碟；按「還原」選擇備份檔即可還原。不需要另外設定。")
         HorizontalDivider()
-        Text("自動備份", style = MaterialTheme.typography.titleSmall)
+        // 開關一直都在：沒有備份檔時打開會先請你選檔案；關掉只是暫停，檔案設定會保留
+        val autoOn = sync.auto && sync.autoFileUri != null
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("自動備份", Modifier.weight(1f), style = MaterialTheme.typography.titleSmall)
+            Text(if (autoOn) "開" else "關", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.width(8.dp))
+            Switch(
+                checked = autoOn,
+                enabled = !syncing,
+                onCheckedChange = { on ->
+                    when {
+                        !on -> vm.setAutoSync(false, sync.intervalHours)
+                        sync.autoFileUri == null -> autoFileLauncher.launch(vm.autoBackupFileName())
+                        else -> vm.setAutoSync(true, sync.intervalHours)
+                    }
+                },
+            )
+        }
         if (sync.autoFileUri == null) {
             Hint("選一個備份檔（建議存到「雲端硬碟」），之後 App 會定時自動把資料寫進同一個檔案。不需要 Google Cloud 設定，也不會過期。")
-            Button(
+            OutlinedButton(
                 onClick = { autoFileLauncher.launch(vm.autoBackupFileName()) },
                 enabled = !syncing,
                 modifier = Modifier.fillMaxWidth(),
             ) { Text(if (syncing) "備份中…" else "選擇自動備份檔案") }
         } else {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("自動備份", Modifier.weight(1f))
-                Switch(
-                    checked = sync.auto,
-                    enabled = !syncing,
-                    onCheckedChange = { vm.setAutoSync(it, sync.intervalHours) },
-                )
-            }
-            Hint("備份檔：${sync.autoFileName ?: "已選擇"}")
-            if (sync.auto) {
+            Hint("備份檔：${sync.autoFileName ?: "已選擇"}　目前：${if (autoOn) "自動備份已開啟" else "自動備份已關閉（不會定時備份，仍可手動立即備份）"}")
+            if (autoOn) {
                 Text("自動備份週期", style = MaterialTheme.typography.labelLarge)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     SYNC_HOURS.forEach { h ->
