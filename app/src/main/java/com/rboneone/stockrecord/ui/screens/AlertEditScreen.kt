@@ -159,7 +159,7 @@ fun AlertEditScreen(vm: AppViewModel, alertId: Long, onDone: () -> Unit) {
                     value = type.label,
                     onValueChange = {},
                     readOnly = true,
-                    // 「上漲」紅色、「下跌」綠色
+                    // 「漲」紅色、「跌」綠色
                     visualTransformation = { TransformedText(riseFallColored(it.text), OffsetMapping.Identity) },
                     label = { Text("通知條件") },
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
@@ -207,11 +207,11 @@ fun AlertEditScreen(vm: AppViewModel, alertId: Long, onDone: () -> Unit) {
 private fun conditionHint(type: AlertType, unit: String, value: Double?): String {
     val v = value?.let { plainNumber(it) } ?: "X"
     return when (type) {
-        AlertType.RISE_AMOUNT -> "今天股價上漲達到 $v $unit（含）以上時通知"
-        AlertType.FALL_AMOUNT -> "今天股價下跌達到 $v $unit（含）以上時通知"
-        AlertType.RISE_PCT -> "今天股價上漲達到 $v%（含）以上時通知"
-        AlertType.FALL_PCT -> "今天股價下跌達到 $v%（含）以上時通知"
-        AlertType.PRICE_ABOVE -> "股價上漲至 $v $unit（含）以上時通知"
-        AlertType.PRICE_BELOW -> "股價下跌至 $v $unit（含）以下時通知"
+        AlertType.RISE_AMOUNT -> "今天股價漲幅 ≥ $v $unit 時通知"
+        AlertType.FALL_AMOUNT -> "今天股價跌幅 ≥ $v $unit 時通知"
+        AlertType.RISE_PCT -> "今天股價漲幅 ≥ $v% 時通知"
+        AlertType.FALL_PCT -> "今天股價跌幅 ≥ $v% 時通知"
+        AlertType.PRICE_ABOVE -> "股價漲到 $v $unit（突破價）以上時通知"
+        AlertType.PRICE_BELOW -> "股價跌到 $v $unit（跌破價）以下時通知"
     }
 }

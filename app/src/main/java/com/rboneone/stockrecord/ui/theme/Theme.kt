@@ -28,8 +28,9 @@ fun pnlColor(value: Double): Color = when {
 /** 文字中的「上漲」標紅色、「下跌」標綠色，其餘維持原本顏色 */
 fun riseFallColored(text: String): AnnotatedString = buildAnnotatedString {
     append(text)
-    Regex("上漲|下跌").findAll(text).forEach { m ->
-        val color = if (m.value == "上漲") ProfitRed else LossGreen
+    // 漲幅／漲到／上漲 用紅色，跌幅／跌到／下跌 用綠色
+    Regex("漲幅|漲到|跌幅|跌到|上漲|下跌").findAll(text).forEach { m ->
+        val color = if (m.value.contains("漲")) ProfitRed else LossGreen
         addStyle(SpanStyle(color = color, fontWeight = FontWeight.Bold), m.range.first, m.range.last + 1)
     }
 }
