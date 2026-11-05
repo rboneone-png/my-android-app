@@ -1,5 +1,6 @@
 package com.rboneone.stockrecord.ui.screens
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -14,6 +15,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material3.Card
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -63,6 +66,9 @@ fun TradesScreen(
     val trades by vm.trades.collectAsStateWithLifecycle()
     val dividends by vm.dividends.collectAsStateWithLifecycle()
     var filter by rememberSaveable { mutableStateOf<Market?>(null) }
+    // 已展開的日期（買賣、股利各自記錄），預設全部收合
+    var openedTrades by rememberSaveable { mutableStateOf(setOf<Long>()) }
+    var openedDividends by rememberSaveable { mutableStateOf(setOf<Long>()) }
 
     Column(Modifier.fillMaxSize()) {
         ScreenTopBar(
@@ -106,7 +112,15 @@ fun TradesScreen(
                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 88.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                items(shown, key = { "d${it.id}" }) { DividendRow(it, onClick = { onDividendClick(it) }) }
+                shown.sortedByDescending { it.date }.groupBy { it.date }.forEach { (date, list) ->
+                    val open = date in openedDividends
+                    item(key = "dh$date") {
+                        DateHeader(date, list.size, open) {
+                            openedDividends = if (open) openedDividends - date else openedDividends + date
+                        }
+                    }
+                    if (open) items(list, key = { "d${it.id}" }) { DividendRow(it, onClick = { onDividendClick(it) }) }
+                }
             }
         } else {
             val shown = trades.filter { filter == null || it.market == filter }
@@ -118,9 +132,42 @@ fun TradesScreen(
                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 88.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                items(shown, key = { it.id }) { TradeRow(it, onClick = { onTradeClick(it) }) }
+                shown.sortedByDescending { it.date }.groupBy { it.date }.forEach { (date, list) ->
+                    val open = date in openedTrades
+                    item(key = "th$date") {
+                        DateHeader(date, list.size, open) {
+                            openedTrades = if (open) openedTrades - date else openedTrades + date
+                        }
+                    }
+                    if (open) items(list, key = { it.id }) { TradeRow(it, onClick = { onTradeClick(it) }) }
+                }
             }
         }
+    }
+}
+
+/** 日期分組列：點一下展開／收合，右側顯示當天筆數 */
+@Composable
+private fun DateHeader(date: Long, count: Int, expanded: Boolean, onToggle: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f))
+            .clickable(onClickLabel = if (expanded) "收合" else "展開", onClick = onToggle)
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            if (expanded) Icons.Filled.KeyboardArrowDown else Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            contentDescription = null,
+        )
+        Text(
+            formatDate(date),
+            Modifier.weight(1f).padding(start = 4.dp),
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.Bold,
+        )
+        Text("$count 筆", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
