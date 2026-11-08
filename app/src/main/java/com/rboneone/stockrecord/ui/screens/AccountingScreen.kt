@@ -39,6 +39,8 @@ import com.rboneone.stockrecord.data.CashFlowType
 import com.rboneone.stockrecord.data.Market
 import com.rboneone.stockrecord.data.Quote
 import com.rboneone.stockrecord.domain.Accounting
+import com.rboneone.stockrecord.domain.LoanMath
+import com.rboneone.stockrecord.ui.plainNumber
 import com.rboneone.stockrecord.ui.AppViewModel
 import com.rboneone.stockrecord.ui.formatAmount
 import com.rboneone.stockrecord.ui.formatDate
@@ -55,18 +57,22 @@ fun AccountingScreen(
     onBack: () -> Unit,
     onAdd: (CashFlowType) -> Unit,
     onEdit: (Long) -> Unit,
+    onAddLoan: () -> Unit,
+    onEditLoan: (Long) -> Unit,
 ) {
     val cashFlows by vm.cashFlows.collectAsStateWithLifecycle()
     val trades by vm.trades.collectAsStateWithLifecycle()
     val pledges by vm.pledges.collectAsStateWithLifecycle()
     val dividends by vm.dividends.collectAsStateWithLifecycle()
     val quotes by vm.quotes.collectAsStateWithLifecycle()
-    // 存入與領出紀錄預設收合
+    val loans by vm.loans.collectAsStateWithLifecycle()
+    // 存入與領出紀錄、貸款清單預設收合
     var expanded by rememberSaveable { mutableStateOf(false) }
+    var loansExpanded by rememberSaveable { mutableStateOf(false) }
     val today = LocalDate.now().toEpochDay()
     val usdTwd = quotes[Market.US to Quote.USD_TWD]?.price
-    val account = remember(cashFlows, trades, pledges, dividends, usdTwd, today) {
-        Accounting.dayAccount(cashFlows, trades, pledges, usdTwd, today, dividends)
+    val account = remember(cashFlows, trades, pledges, dividends, usdTwd, today, loans) {
+        Accounting.dayAccount(cashFlows, trades, pledges, usdTwd, today, dividends, loans)
     }
 
     // 美股買賣要用匯率換算，進來時順便更新報價
@@ -92,6 +98,8 @@ fun AccountingScreen(
                 }
             }
 
+            OutlinedButton(onClick = onAddLoan, modifier = Modifier.fillMaxWidth()) { Text("新增貸款") }
+
             Card(
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                 modifier = Modifier.fillMaxWidth(),
@@ -112,7 +120,7 @@ fun AccountingScreen(
                     Text(
                         "= 存入現金 ${twd(account.deposits)} − 領出現金 ${twd(account.withdrawals)}" +
                             " + 帳務累計 ${signedTwd(account.accountTotal)} + 質借金額累計 ${twd(account.pledgedTotal)}" +
-                            " + 股利累計 ${twd(account.dividendsTotal)}",
+                            " + 股利累計 ${twd(account.dividendsTotal)} − 貸款累計 ${twd(account.loanTotal)}",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -122,11 +130,13 @@ fun AccountingScreen(
                     Item("當日帳務（賣出 − 買進）", signedTwd(account.dayNet), bold = true)
                     Item("當日質借金額", twd(account.pledged))
                     Item("當日股利（實際入帳）", twd(account.dividendsToday))
+                    Item("當日貸款金額（繳款日自動扣款）", twd(account.loanToday))
                     HorizontalDivider()
                     // 前幾天的買賣與質押會留在餘額裡，這裡列出累計
                     Item("帳務累計（歷來賣出 − 買進，含今日）", signedTwd(account.accountTotal))
                     Item("質借金額累計（含今日）", twd(account.pledgedTotal))
                     Item("股利累計（含今日）", twd(account.dividendsTotal))
+                    Item("貸款累計（含今日，已扣款）", twd(account.loanTotal))
                     when {
                         account.usMissingRate -> Text(
                             "尚未取得美元匯率，美股買賣未計入，請到持股總覽更新股價。",
@@ -192,10 +202,67 @@ fun AccountingScreen(
                     }
                 }
             }
+            // 貸款清單：可展開／收合，預設收合
+            Card(Modifier.fillMaxWidth()) {
+                Column {
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .clickable(onClickLabel = if (loansExpanded) "收合" else "展開") { loansExpanded = !loansExpanded }
+                            .padding(horizontal = 12.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(
+                            if (loansExpanded) Icons.Filled.KeyboardArrowDown else Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                            contentDescription = null,
+                        )
+                        Text(
+                            "貸款（${loans.size}）",
+                            style = MaterialTheme.typography.titleMedium,
+                            modifier = Modifier.padding(start = 4.dp).weight(1f),
+                        )
+                    }
+                    if (loansExpanded) {
+                        HorizontalDivider()
+                        if (loans.isEmpty()) EmptyHint("還沒有貸款\n按上方「新增貸款」")
+                        loans.forEachIndexed { i, l ->
+                            if (i > 0) HorizontalDivider()
+                            val paid = LoanMath.paidPeriods(l, today)
+                            val next = LoanMath.nextDueDate(l, today)
+                            Row(
+                                Modifier.fillMaxWidth().clickable { onEditLoan(l.id) }.padding(horizontal = 16.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Column(Modifier.weight(1f)) {
+                                    Text(
+                                        l.type.label + if (l.note.isNotBlank()) "・${l.note}" else "",
+                                        style = MaterialTheme.typography.titleSmall,
+                                    )
+                                    Text(
+                                        "貸款 ${twd(Accounting.round(l.principal))}・利率 ${plainNumber(l.annualRatePct)}%・已繳 $paid／${l.totalPeriods} 期",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                    Text(
+                                        "每月 ${l.payDay} 日繳款" + (next?.let { "・下次 ${formatDate(it)}" } ?: "・已繳清"),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                                Column(horizontalAlignment = Alignment.End) {
+                                    Text(twd(LoanMath.monthlyPayment(l)), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium)
+                                    Text("每月繳款", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
             Text(
-                "當日可用餘額 = 存入現金 − 領出現金 + 帳務累計 + 質借金額累計 + 股利累計。這些都是歷來累計，" +
+                "當日可用餘額 = 存入現金 − 領出現金 + 帳務累計 + 質借金額累計 + 股利累計 − 貸款累計。這些都是歷來累計，" +
                     "前幾天的買賣、質押與股利會留在餘額裡；當日帳務（賣出 − 買進）是其中今天的部分。\n" +
                     "股利為實際入帳的現金股利（已扣除代扣稅與匯費），股票股利不計。\n" +
+                    "貸款在每月繳款日自動扣款（當日貸款金額），建立貸款日之後的繳款日才會扣。\n" +
                     "賣出／買進金額為成交金額（股數 × 成交價，未含手續費與證交稅），" +
                     "美股以目前匯率換算成台幣。所有金額四捨五入到整數。",
                 style = MaterialTheme.typography.bodySmall,

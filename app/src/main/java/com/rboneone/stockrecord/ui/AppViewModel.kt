@@ -10,6 +10,7 @@ import com.rboneone.stockrecord.data.totalHours
 import com.rboneone.stockrecord.data.AssetCategory
 import com.rboneone.stockrecord.data.CashFlow
 import com.rboneone.stockrecord.data.Dividend
+import com.rboneone.stockrecord.data.Loan
 import com.rboneone.stockrecord.data.LookupResult
 import com.rboneone.stockrecord.data.Market
 import com.rboneone.stockrecord.data.Quote
@@ -91,6 +92,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val watchDao = db.watchDao()
     private val highWatchDao = db.highWatchDao()
     private val cashFlowDao = db.cashFlowDao()
+    private val loanDao = db.loanDao()
     private val settingsRepository = app.settings(userId)
     private val marketRepository = app.marketRepository(userId)
 
@@ -140,9 +142,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
      * 用到後面才宣告的資料流，所以用 lazy，第一次使用時才建立。
      */
     private val accountAvailable: Flow<Double> by lazy {
-        combine(cashFlows, trades, pledges, dividends, quotes) { cashFlows, trades, pledges, dividends, quotes ->
+        combine(cashFlows, trades, pledges, dividends, combine(quotes, loans) { q, l -> q to l }) { cashFlows, trades, pledges, dividends, ql ->
+            val (quotes, loans) = ql
             val usdTwd = quotes[Market.US to Quote.USD_TWD]?.price
-            Accounting.dayAccount(cashFlows, trades, pledges, usdTwd, LocalDate.now().toEpochDay(), dividends)
+            Accounting.dayAccount(cashFlows, trades, pledges, usdTwd, LocalDate.now().toEpochDay(), dividends, loans)
                 .available.toDouble()
         }
     }
@@ -526,6 +529,21 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun deleteCashFlow(flow: CashFlow) {
         viewModelScope.launch { cashFlowDao.delete(flow) }
+    }
+
+    // ---- 貸款 ----
+
+    val loans: StateFlow<List<Loan>> = loanDao.observeAll()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    suspend fun getLoan(id: Long): Loan? = loanDao.get(id)
+
+    fun saveLoan(loan: Loan) {
+        viewModelScope.launch { loanDao.upsert(loan) }
+    }
+
+    fun deleteLoan(loan: Loan) {
+        viewModelScope.launch { loanDao.delete(loan) }
     }
 
     // ---- 圖表與匯出 ----

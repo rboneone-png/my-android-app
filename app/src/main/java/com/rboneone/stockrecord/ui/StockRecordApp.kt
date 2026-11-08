@@ -37,6 +37,7 @@ import com.rboneone.stockrecord.data.CashFlowType
 import com.rboneone.stockrecord.data.Market
 import com.rboneone.stockrecord.ui.screens.AccountingScreen
 import com.rboneone.stockrecord.ui.screens.CashFlowEditScreen
+import com.rboneone.stockrecord.ui.screens.LoanEditScreen
 import com.rboneone.stockrecord.ui.screens.PledgeEditScreen
 import com.rboneone.stockrecord.ui.screens.PledgePickScreen
 import com.rboneone.stockrecord.ui.screens.PledgeScreen
@@ -166,7 +167,12 @@ fun StockRecordApp(vm: AppViewModel) {
                     onBack = { nav.popBackStack() },
                     onAdd = { type -> nav.navigate("cash/0?type=${type.name}") },
                     onEdit = { nav.navigate("cash/$it") },
+                    onAddLoan = { nav.navigate("loan/0") },
+                    onEditLoan = { nav.navigate("loan/$it") },
                 )
+            }
+            composable("loan/{id}", arguments = listOf(navArgument("id") { type = NavType.LongType })) { entry ->
+                LoanEditScreen(vm = vm, loanId = entry.arguments?.getLong("id") ?: 0, onDone = { nav.popBackStack() })
             }
             composable(
                 "cash/{id}?type={type}",

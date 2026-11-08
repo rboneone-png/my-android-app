@@ -39,6 +39,7 @@ class SyncManager(private val app: StockApp) {
             watchlist = db.watchDao().getAll(),
             highWatch = db.highWatchDao().getAll(),
             cashFlows = db.cashFlowDao().getAll(),
+            loans = db.loanDao().getAll(),
             account = app.accountStore.find(userId)?.let { BackupAccount(it.username, it.salt, it.passwordHash, it.method.name) },
         )
     }
@@ -117,6 +118,8 @@ class SyncManager(private val app: StockApp) {
             db.highWatchDao().insertAll(data.highWatch)
             db.cashFlowDao().deleteAll()
             db.cashFlowDao().insertAll(data.cashFlows)
+            db.loanDao().deleteAll()
+            db.loanDao().insertAll(data.loans)
         }
         app.settings(userId).update(data.fees)
         app.settings(userId).setCash(data.cash)

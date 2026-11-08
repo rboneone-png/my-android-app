@@ -6,8 +6,8 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
-    entities = [Trade::class, StockInfo::class, Quote::class, Dividend::class, StockCategory::class, PriceAlert::class, Pledge::class, WatchItem::class, HighWatchItem::class, CashFlow::class],
-    version = 10,
+    entities = [Trade::class, StockInfo::class, Quote::class, Dividend::class, StockCategory::class, PriceAlert::class, Pledge::class, WatchItem::class, HighWatchItem::class, CashFlow::class, Loan::class],
+    version = 11,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -17,6 +17,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun categoryDao(): CategoryDao
     abstract fun alertDao(): AlertDao
     abstract fun pledgeDao(): PledgeDao
+    abstract fun loanDao(): LoanDao
     abstract fun watchDao(): WatchDao
     abstract fun highWatchDao(): HighWatchDao
     abstract fun cashFlowDao(): CashFlowDao
@@ -119,6 +120,18 @@ abstract class AppDatabase : RoomDatabase() {
         val MIGRATION_9_10 = object : Migration(9, 10) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE `dividends` ADD COLUMN `perShare` REAL")
+            }
+        }
+
+        /** v10 → v11：新增貸款資料表 */
+        val MIGRATION_10_11 = object : Migration(10, 11) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `loans` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "`type` TEXT NOT NULL, `principal` REAL NOT NULL, `annualRatePct` REAL NOT NULL, " +
+                        "`totalPeriods` INTEGER NOT NULL, `paidPeriods` INTEGER NOT NULL, `payDay` INTEGER NOT NULL, " +
+                        "`startDate` INTEGER NOT NULL, `note` TEXT NOT NULL)"
+                )
             }
         }
     }

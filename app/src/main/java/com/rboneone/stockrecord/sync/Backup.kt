@@ -6,6 +6,8 @@ import com.rboneone.stockrecord.data.CashFlow
 import com.rboneone.stockrecord.data.CashFlowType
 import com.rboneone.stockrecord.data.Dividend
 import com.rboneone.stockrecord.data.HighWatchItem
+import com.rboneone.stockrecord.data.Loan
+import com.rboneone.stockrecord.data.LoanType
 import com.rboneone.stockrecord.data.Market
 import com.rboneone.stockrecord.data.Pledge
 import com.rboneone.stockrecord.data.PriceAlert
@@ -40,6 +42,8 @@ data class BackupData(
     val cashFlows: List<CashFlow> = emptyList(),
     /** 舊版備份沒有帳號資料，為 null */
     val account: BackupAccount? = null,
+    /** 貸款（舊版備份沒有，還原後為空） */
+    val loans: List<Loan> = emptyList(),
 )
 
 /** 備份檔格式（JSON），只含密碼的加鹽雜湊值，不含明碼 */
@@ -116,8 +120,18 @@ object Backup {
                     .put("date", it.date).put("amount", it.amount).put("note", it.note)
             )
         }
+        val loans = JSONArray()
+        data.loans.forEach {
+            loans.put(
+                JSONObject().put("id", it.id).put("type", it.type.name).put("principal", it.principal)
+                    .put("annualRatePct", it.annualRatePct).put("totalPeriods", it.totalPeriods)
+                    .put("paidPeriods", it.paidPeriods).put("payDay", it.payDay)
+                    .put("startDate", it.startDate).put("note", it.note)
+            )
+        }
         return JSONObject()
             .put("version", VERSION)
+            .put("loans", loans)
             .also { o ->
                 data.account?.let {
                     o.put("account", JSONObject().put("username", it.username).put("salt", it.salt)
@@ -279,12 +293,31 @@ object Backup {
                 }.getOrNull()
             }
         } ?: emptyList()
+        val loans = root.optJSONArray("loans")?.let { a ->
+            (0 until a.length()).mapNotNull { i ->
+                val o = a.getJSONObject(i)
+                runCatching {
+                    Loan(
+                        id = o.getLong("id"),
+                        type = LoanType.valueOf(o.getString("type")),
+                        principal = o.getDouble("principal"),
+                        annualRatePct = o.getDouble("annualRatePct"),
+                        totalPeriods = o.getInt("totalPeriods"),
+                        paidPeriods = o.optInt("paidPeriods", 0),
+                        payDay = o.getInt("payDay"),
+                        startDate = o.getLong("startDate"),
+                        note = o.optString("note"),
+                    )
+                }.getOrNull()
+            }
+        } ?: emptyList()
         return BackupData(
             root.optLong("exportedAt"), trades, dividends, fees, categories, root.optDouble("cash", 0.0), alerts, pledges,
             holdingOrder, watchlist, highWatch, cashFlows,
             root.optJSONObject("account")?.let {
                 BackupAccount(it.getString("username"), it.getString("salt"), it.getString("hash"), it.optString("method", "PASSWORD"))
             },
+            loans,
         )
     }
 }

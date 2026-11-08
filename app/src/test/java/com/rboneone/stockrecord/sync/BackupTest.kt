@@ -85,4 +85,14 @@ class BackupTest {
         assertEquals(acc, data.account)
         assertEquals(null, Backup.parse("""{"version":1,"exportedAt":1,"trades":[],"dividends":[]}""").account)
     }
+
+    @Test
+    fun loansRoundTrip_andOldBackupHasNone() {
+        val loan = com.rboneone.stockrecord.data.Loan(
+            3, com.rboneone.stockrecord.data.LoanType.CAR, 800_000.0, 2.5, 60, 4, 15, 20_000, "房車",
+        )
+        val data = Backup.parse(Backup.serialize(BackupData(1, emptyList(), emptyList(), FeeSettings(), loans = listOf(loan))))
+        assertEquals(listOf(loan), data.loans)
+        assertEquals(emptyList<com.rboneone.stockrecord.data.Loan>(), Backup.parse("""{"version":1,"exportedAt":1,"trades":[],"dividends":[]}""").loans)
+    }
 }

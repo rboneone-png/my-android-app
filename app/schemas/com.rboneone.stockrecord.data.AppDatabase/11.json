@@ -1,8 +1,8 @@
 {
   "formatVersion": 1,
   "database": {
-    "version": 10,
-    "identityHash": "ebfdbff486edf3be78c7218d1d4ffc23",
+    "version": 11,
+    "identityHash": "4893a77822d9b16a743a704a97a2a8e8",
     "entities": [
       {
         "tableName": "trades",
@@ -578,12 +578,80 @@
         },
         "indices": [],
         "foreignKeys": []
+      },
+      {
+        "tableName": "loans",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `type` TEXT NOT NULL, `principal` REAL NOT NULL, `annualRatePct` REAL NOT NULL, `totalPeriods` INTEGER NOT NULL, `paidPeriods` INTEGER NOT NULL, `payDay` INTEGER NOT NULL, `startDate` INTEGER NOT NULL, `note` TEXT NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "type",
+            "columnName": "type",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "principal",
+            "columnName": "principal",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "annualRatePct",
+            "columnName": "annualRatePct",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "totalPeriods",
+            "columnName": "totalPeriods",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "paidPeriods",
+            "columnName": "paidPeriods",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "payDay",
+            "columnName": "payDay",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "startDate",
+            "columnName": "startDate",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "note",
+            "columnName": "note",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
       }
     ],
     "views": [],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'ebfdbff486edf3be78c7218d1d4ffc23')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '4893a77822d9b16a743a704a97a2a8e8')"
     ]
   }
 }

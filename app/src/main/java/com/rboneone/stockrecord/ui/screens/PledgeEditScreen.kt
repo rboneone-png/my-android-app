@@ -334,7 +334,7 @@ internal fun DateDropdowns(epochDay: Long, onChange: (Long) -> Unit) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun DropdownField(
+internal fun DropdownField(
     label: String,
     value: String,
     options: List<String>,

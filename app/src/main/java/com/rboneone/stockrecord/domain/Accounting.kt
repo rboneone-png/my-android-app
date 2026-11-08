@@ -3,6 +3,7 @@ package com.rboneone.stockrecord.domain
 import com.rboneone.stockrecord.data.CashFlow
 import com.rboneone.stockrecord.data.CashFlowType
 import com.rboneone.stockrecord.data.Dividend
+import com.rboneone.stockrecord.data.Loan
 import com.rboneone.stockrecord.data.Market
 import com.rboneone.stockrecord.data.Pledge
 import com.rboneone.stockrecord.data.Trade
@@ -14,15 +15,17 @@ import com.rboneone.stockrecord.data.TradeType
  * 當日（今天）：
  * - B 當日賣出金額、C 當日買進金額：台股 + 美股（以匯率換成台幣）
  * - D 當日帳務 = B − C；當日質借金額：今天新增的質借金額
+ * - 當日貸款金額：今天是貸款繳款日時，自動扣款的每月繳款總和
  * - 當日股利：今天入帳的現金股利（扣除代扣稅與匯費後的實際入帳金額）
  *
  * 累計（歷來到今天，隔天不會消失）：
  * - 帳務累計 = 歷來每一天（賣出 − 買進）的總和，今天的就是 D
  * - 質借金額累計 = 歷來質借金額的總和
  * - 股利累計 = 歷來入帳的現金股利總和
+ * - 貸款累計 = 建立貸款之後，歷來每個繳款日自動扣款的金額總和
  * - 存入現金、領出現金：截至今天的累計
  *
- * A 當日可用餘額 = 存入現金 − 領出現金 + 帳務累計 + 質借金額累計 + 股利累計
+ * A 當日可用餘額 = 存入現金 − 領出現金 + 帳務累計 + 質借金額累計 + 股利累計 − 貸款累計
  */
 data class DayAccount(
     /** 截至當天累計存入的現金 */
@@ -47,12 +50,16 @@ data class DayAccount(
     val usdTwd: Double?,
     /** 今天有美股買賣，但沒有匯率而無法換算（未計入） */
     val usMissingRate: Boolean,
+    /** 當日貸款金額：今天自動扣款的貸款繳款 */
+    val loanToday: Long = 0,
+    /** 歷來（到今天）貸款自動扣款的總和 */
+    val loanTotal: Long = 0,
 ) {
     /** D：當日帳務 = B − C */
     val dayNet: Long get() = sells - buys
 
-    /** A：當日可用餘額 = 存入現金 − 領出現金 + 帳務累計 + 質借金額累計 + 股利累計 */
-    val available: Long get() = deposits - withdrawals + accountTotal + pledgedTotal + dividendsTotal
+    /** A：當日可用餘額 = 存入現金 − 領出現金 + 帳務累計 + 質借金額累計 + 股利累計 − 貸款累計 */
+    val available: Long get() = deposits - withdrawals + accountTotal + pledgedTotal + dividendsTotal - loanTotal
 }
 
 object Accounting {
@@ -66,6 +73,7 @@ object Accounting {
         usdTwd: Double?,
         date: Long,
         dividends: List<Dividend> = emptyList(),
+        loans: List<Loan> = emptyList(),
     ): DayAccount {
         val flows = cashFlows.filter { it.date <= date }
         val upToToday = trades.filter { it.date <= date }
@@ -103,6 +111,8 @@ object Accounting {
             dividendsTotal = dividendsUpToToday.values.sum(),
             usdTwd = rate,
             usMissingRate = usMissing,
+            loanToday = loans.sumOf { LoanMath.dueOn(it, date) },
+            loanTotal = loans.sumOf { LoanMath.deductedUpTo(it, date) },
         )
     }
 }
