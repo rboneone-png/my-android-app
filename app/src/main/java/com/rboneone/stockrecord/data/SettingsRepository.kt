@@ -2,6 +2,7 @@ package com.rboneone.stockrecord.data
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.rboneone.stockrecord.domain.Clec
 import com.rboneone.stockrecord.domain.FeeSettings
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -45,6 +46,16 @@ class SettingsRepository(context: Context, userId: String) {
     private val _clecMethod = MutableStateFlow(prefs.getString(KEY_CLEC_METHOD, null) ?: "433")
     /** CLEC 退休投資策略：配置方式代碼（例如 433） */
     val clecMethod: StateFlow<String> = _clecMethod.asStateFlow()
+
+    private val _clecOverrides = MutableStateFlow(
+        Clec.Overrides(
+            prefs.getString(KEY_CLEC_F, null)?.toDoubleOrNull(),
+            prefs.getString(KEY_CLEC_G, null)?.toDoubleOrNull(),
+            prefs.getString(KEY_CLEC_H, null)?.toDoubleOrNull(),
+        )
+    )
+    /** CLEC 退休投資策略：F 指數ETF、G 正二ETF、H 類現金 的手動數值；null 表示自動 */
+    val clecOverrides: StateFlow<Clec.Overrides> = _clecOverrides.asStateFlow()
 
     private val _holdingOrder = MutableStateFlow(
         Market.entries.associateWith { m -> prefs.getString(orderKey(m), null).orEmpty().split(',').filter { it.isNotEmpty() } }
@@ -114,6 +125,14 @@ class SettingsRepository(context: Context, userId: String) {
         _clecLivingCost.value = amount
     }
 
+    fun setClecOverrides(o: Clec.Overrides) {
+        prefs.edit().apply {
+            fun put(key: String, v: Double?) = if (v == null) remove(key) else putString(key, v.toString())
+            put(KEY_CLEC_F, o.indexEtf); put(KEY_CLEC_G, o.leveragedEtf); put(KEY_CLEC_H, o.cashLike)
+        }.apply()
+        _clecOverrides.value = o
+    }
+
     fun setClecMethod(code: String) {
         prefs.edit().putString(KEY_CLEC_METHOD, code).apply()
         _clecMethod.value = code
@@ -160,6 +179,9 @@ class SettingsRepository(context: Context, userId: String) {
         private const val KEY_CASH = "cash_twd"
         private const val KEY_CLEC_LIVING = "clec_living_cost"
         private const val KEY_CLEC_METHOD = "clec_method"
+        private const val KEY_CLEC_F = "clec_f"
+        private const val KEY_CLEC_G = "clec_g"
+        private const val KEY_CLEC_H = "clec_h"
         private const val KEY_PLEDGE_ALERT_DAY = "pledge_alert_day"
         private const val KEY_PLEDGE_INCLUDE_LEV = "pledge_include_leveraged"
         private const val KEY_SYNC_AUTO = "sync_auto"

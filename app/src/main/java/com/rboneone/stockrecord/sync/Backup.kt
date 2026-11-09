@@ -47,6 +47,8 @@ data class BackupData(
     /** CLEC 退休投資策略的設定 */
     val clecLivingCost: Double = 0.0,
     val clecMethod: String = "433",
+    /** CLEC 的 F、G、H 手動數值（null 表示自動） */
+    val clecOverrides: com.rboneone.stockrecord.domain.Clec.Overrides = com.rboneone.stockrecord.domain.Clec.Overrides(),
 )
 
 /** 備份檔格式（JSON），只含密碼的加鹽雜湊值，不含明碼 */
@@ -137,6 +139,11 @@ object Backup {
             .put("loans", loans)
             .put("clecLivingCost", data.clecLivingCost)
             .put("clecMethod", data.clecMethod)
+            .also { o ->
+                data.clecOverrides.indexEtf?.let { o.put("clecF", it) }
+                data.clecOverrides.leveragedEtf?.let { o.put("clecG", it) }
+                data.clecOverrides.cashLike?.let { o.put("clecH", it) }
+            }
             .also { o ->
                 data.account?.let {
                     o.put("account", JSONObject().put("username", it.username).put("salt", it.salt)
@@ -325,6 +332,11 @@ object Backup {
             loans,
             root.optDouble("clecLivingCost", 0.0).takeUnless { it.isNaN() } ?: 0.0,
             root.optString("clecMethod", "433").ifEmpty { "433" },
+            com.rboneone.stockrecord.domain.Clec.Overrides(
+                if (root.has("clecF")) root.optDouble("clecF") else null,
+                if (root.has("clecG")) root.optDouble("clecG") else null,
+                if (root.has("clecH")) root.optDouble("clecH") else null,
+            ),
         )
     }
 }

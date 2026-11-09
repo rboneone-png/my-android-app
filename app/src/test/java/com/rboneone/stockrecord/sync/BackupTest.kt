@@ -105,4 +105,12 @@ class BackupTest {
         assertEquals(0.0, old.clecLivingCost, 0.0)
         assertEquals("433", old.clecMethod)
     }
+
+    @Test
+    fun clecOverridesRoundTrip_nullMeansAuto() {
+        val o = com.rboneone.stockrecord.domain.Clec.Overrides(indexEtf = 5_000_000.0, leveragedEtf = 0.0, cashLike = null)
+        val data = Backup.parse(Backup.serialize(BackupData(1, emptyList(), emptyList(), FeeSettings(), clecOverrides = o)))
+        assertEquals(o, data.clecOverrides)
+        assertEquals(com.rboneone.stockrecord.domain.Clec.Overrides(), Backup.parse("""{"version":1,"exportedAt":1,"trades":[],"dividends":[]}""").clecOverrides)
+    }
 }

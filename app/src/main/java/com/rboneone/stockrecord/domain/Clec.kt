@@ -10,7 +10,8 @@ import java.math.RoundingMode
  * 例如 703 → 70% 原型指數、0% 正二槓桿、30% 類現金。
  *
  * - C 曝險（Beta）= 第一碼數值 + 2 × 第二碼數值（703 → 0.7 + 2 × 0.0 = 0.7）
- * - D 金融資產 = F + G + H（F 指數ETF＝原型市值、G 正二ETF＝正二市值、H 類現金＝類現金市值＋現金）
+ * - D 金融資產 = F + G + H（F 指數ETF＝原型市值、G 正二ETF＝正二市值、H 類現金＝類現金市值＋現金；
+ *   三項預設自動帶入資產配置頁，使用者可手動修改）
  * - I 幾倍年生活費 = D ÷ A（A＝一年生活費），小數一位、第二位四捨五入
  * - J 現況建議配置 = 依 I 對照 [PLANS] 的 N 年生活費區間
  */
@@ -66,6 +67,9 @@ object Clec {
         else -> PLANS[7]
     }
 
+    /** F、G、H 的手動數值；null 表示用資產配置頁自動帶入的數字 */
+    data class Overrides(val indexEtf: Double? = null, val leveragedEtf: Double? = null, val cashLike: Double? = null)
+
     data class Result(
         /** A 一年生活費 */
         val livingCost: Double,
@@ -87,15 +91,26 @@ object Clec {
         val years: Double?,
         /** J 現況建議配置；I 算不出來時為 null */
         val suggested: Plan?,
+        /** F、G、H 是否為使用者手動輸入的數值 */
+        val indexEtfManual: Boolean = false,
+        val leveragedEtfManual: Boolean = false,
+        val cashLikeManual: Boolean = false,
     )
 
-    fun compute(view: AllocationView, livingCost: Double, methodCode: String): Result {
-        val f = view.core
-        val g = view.leveraged
-        val h = view.cashLike + view.cash
+    /**
+     * F、G、H 預設用資產配置頁的數字，有手動數值時以手動為準。
+     * E 曝險金額 = F + 2 × G（沒有手動修改時，就等於資產配置頁的曝險金額）。
+     */
+    fun compute(view: AllocationView, livingCost: Double, methodCode: String, overrides: Overrides = Overrides()): Result {
+        val f = overrides.indexEtf ?: view.core
+        val g = overrides.leveragedEtf ?: view.leveraged
+        val h = overrides.cashLike ?: (view.cashLike + view.cash)
         val d = f + g + h
         val i = years(d, livingCost)
         val method = plan(methodCode)
-        return Result(livingCost, method, method.beta, d, view.exposure, f, g, h, i, i?.let { suggest(it) })
+        return Result(
+            livingCost, method, method.beta, d, f + 2 * g, f, g, h, i, i?.let { suggest(it) },
+            overrides.indexEtf != null, overrides.leveragedEtf != null, overrides.cashLike != null,
+        )
     }
 }

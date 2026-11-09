@@ -82,4 +82,31 @@ class ClecTest {
 
     @Test
     fun unknownMethodFallsBackToDefault() = assertEquals("433", Clec.plan("999").code)
+
+    @Test
+    fun overrides_replaceAutoValuesAndFeedDAndE() {
+        val v = view(6_000_000.0, 2_000_000.0, 1_000_000.0, 500_000.0)
+        val auto = Clec.compute(v, 400_000.0, "433")
+        assertEquals(false, auto.indexEtfManual)
+        assertEquals(9_500_000.0, auto.financialAssets, 0.0)
+        assertEquals(10_000_000.0, auto.exposure, 0.0)
+
+        // 只改 F（指數ETF）：D、E 跟著變，G、H 仍自動
+        val f = Clec.compute(v, 400_000.0, "433", Clec.Overrides(indexEtf = 8_000_000.0))
+        assertEquals(true, f.indexEtfManual); assertEquals(false, f.leveragedEtfManual); assertEquals(false, f.cashLikeManual)
+        assertEquals(8_000_000.0, f.indexEtf, 0.0)
+        assertEquals(2_000_000.0, f.leveragedEtf, 0.0)
+        assertEquals(1_500_000.0, f.cashLike, 0.0)
+        assertEquals(11_500_000.0, f.financialAssets, 0.0)
+        assertEquals(12_000_000.0, f.exposure, 0.0)      // 8,000,000 + 2 × 2,000,000
+        assertEquals(28.8, f.years!!, 0.0)               // 11,500,000 ÷ 400,000 = 28.75 → 28.8
+
+        // 三項都手動，0 也是有效的手動值
+        val all = Clec.compute(v, 400_000.0, "433", Clec.Overrides(1_000_000.0, 0.0, 2_000_000.0))
+        assertEquals(3_000_000.0, all.financialAssets, 0.0)
+        assertEquals(1_000_000.0, all.exposure, 0.0)
+        assertEquals(true, all.leveragedEtfManual)
+        assertEquals(7.5, all.years!!, 0.0)
+        assertEquals("073", all.suggested!!.code)
+    }
 }

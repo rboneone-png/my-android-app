@@ -22,6 +22,7 @@ import com.rboneone.stockrecord.data.Trade
 import com.rboneone.stockrecord.data.WatchItem
 import com.rboneone.stockrecord.data.HighWatchItem
 import com.rboneone.stockrecord.domain.Accounting
+import com.rboneone.stockrecord.domain.Clec
 import com.rboneone.stockrecord.domain.Allocation
 import com.rboneone.stockrecord.domain.AssetPoint
 import com.rboneone.stockrecord.domain.AssetTrend
@@ -140,6 +141,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     val clecMethod: StateFlow<String> = settingsRepository.clecMethod
     fun setClecLivingCost(amount: Double) = settingsRepository.setClecLivingCost(amount)
     fun setClecMethod(code: String) = settingsRepository.setClecMethod(code)
+    val clecOverrides: StateFlow<Clec.Overrides> = settingsRepository.clecOverrides
+    fun setClecOverrides(o: Clec.Overrides) = settingsRepository.setClecOverrides(o)
 
     fun setHoldingOrder(market: Market, symbols: List<String>) = settingsRepository.setHoldingOrder(market, symbols)
 

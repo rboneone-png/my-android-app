@@ -43,7 +43,12 @@ fun ClecTab(vm: AppViewModel, allocation: AllocationView) {
     val methodCode by vm.clecMethod.collectAsStateWithLifecycle()
     // 輸入框自己保留文字，避免輸入「12.」這種中間狀態被數字格式洗掉
     var livingText by rememberSaveable { mutableStateOf(if (livingCost > 0) plainNumber(livingCost) else "") }
-    val r = remember(allocation, livingCost, methodCode) { Clec.compute(allocation, livingCost, methodCode) }
+    val overrides by vm.clecOverrides.collectAsStateWithLifecycle()
+    val r = remember(allocation, livingCost, methodCode, overrides) { Clec.compute(allocation, livingCost, methodCode, overrides) }
+    // 手動輸入時各自保留輸入框文字（切回自動就不用）
+    var fText by rememberSaveable { mutableStateOf(overrides.indexEtf?.let { plainNumber(it) } ?: "") }
+    var gText by rememberSaveable { mutableStateOf(overrides.leveragedEtf?.let { plainNumber(it) } ?: "") }
+    var hText by rememberSaveable { mutableStateOf(overrides.cashLike?.let { plainNumber(it) } ?: "") }
 
     Column(
         Modifier.verticalScroll(rememberScrollState()).padding(16.dp),
@@ -71,11 +76,30 @@ fun ClecTab(vm: AppViewModel, allocation: AllocationView) {
                 ) { vm.setClecMethod(Clec.PLANS[it].code) }
                 HorizontalDivider()
                 ClecRow("C", "曝險（Beta）", "%.1f".format(r.beta), "= 第一碼 ${r.method.corePct} + 2 × 第二碼 ${r.method.leveragedPct}")
+                // F、G、H：預設自動帶入資產配置頁的數字；直接修改就變成手動，按「自動」恢復
+                AutoNumberField(
+                    "F. 指數ETF（元）", r.indexEtf, r.indexEtfManual, fText,
+                    onText = { fText = it; vm.setClecOverrides(overrides.copy(indexEtf = parseManual(it))) },
+                    onAuto = { fText = ""; vm.setClecOverrides(overrides.copy(indexEtf = null)) },
+                    note = if (r.indexEtfManual) "手動輸入（自動值：${twd(allocation.core)}）" else "自動：資產配置頁的原型市值",
+                )
+                AutoNumberField(
+                    "G. 正二ETF（元）", r.leveragedEtf, r.leveragedEtfManual, gText,
+                    onText = { gText = it; vm.setClecOverrides(overrides.copy(leveragedEtf = parseManual(it))) },
+                    onAuto = { gText = ""; vm.setClecOverrides(overrides.copy(leveragedEtf = null)) },
+                    note = if (r.leveragedEtfManual) "手動輸入（自動值：${twd(allocation.leveraged)}）" else "自動：資產配置頁的正二市值",
+                )
+                AutoNumberField(
+                    "H. 類現金（元）", r.cashLike, r.cashLikeManual, hText,
+                    onText = { hText = it; vm.setClecOverrides(overrides.copy(cashLike = parseManual(it))) },
+                    onAuto = { hText = ""; vm.setClecOverrides(overrides.copy(cashLike = null)) },
+                    note = if (r.cashLikeManual) "手動輸入（自動值：${twd(allocation.cashLike + allocation.cash)}）" else "自動：資產配置頁的類現金市值 + 現金",
+                )
                 ClecRow("D", "金融資產", twd(r.financialAssets), "= F + G + H")
-                ClecRow("E", "曝險金額", twd(r.exposure), "資產配置頁的曝險（原型 + 2 × 正二）")
-                ClecRow("F", "指數ETF", twd(r.indexEtf), "資產配置頁的原型市值")
-                ClecRow("G", "正二ETF", twd(r.leveragedEtf), "資產配置頁的正二市值")
-                ClecRow("H", "類現金", twd(r.cashLike), "資產配置頁的類現金市值 + 現金")
+                ClecRow(
+                    "E", "曝險金額", twd(r.exposure),
+                    if (r.indexEtfManual || r.leveragedEtfManual) "= F + 2 × G（F 或 G 已手動修改）" else "資產配置頁的曝險（原型 + 2 × 正二）",
+                )
                 HorizontalDivider()
                 ClecRow(
                     "I", "幾倍年生活費",
@@ -138,6 +162,30 @@ fun ClecTab(vm: AppViewModel, allocation: AllocationView) {
             }
         }
     }
+}
+
+/** 空白（或無法解讀）時視為 0；有數字就用那個數字 */
+private fun parseManual(text: String): Double = text.toAmountOrNull()?.coerceAtLeast(0.0) ?: 0.0
+
+/** 自動帶入的數字欄位：沒手動修改時顯示自動值，改了就變手動並出現「自動」按鈕 */
+@Composable
+private fun AutoNumberField(
+    label: String,
+    value: Double,
+    manual: Boolean,
+    manualText: String,
+    onText: (String) -> Unit,
+    onAuto: () -> Unit,
+    note: String,
+) {
+    NumberField(
+        value = if (manual) manualText.ifEmpty { if (value != 0.0) Math.round(value).toString() else "" } else Math.round(value).toString(),
+        onValueChange = onText,
+        label = label,
+        modifier = Modifier.fillMaxWidth(),
+        supporting = note,
+        onResetAuto = if (manual) onAuto else null,
+    )
 }
 
 @Composable
