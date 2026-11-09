@@ -14,6 +14,7 @@ import java.math.RoundingMode
  *   三項預設自動帶入資產配置頁，使用者可手動修改）
  * - I 幾倍年生活費 = D ÷ A（A＝一年生活費），小數一位、第二位四捨五入
  * - J 現況建議配置 = 依 I 對照 [PLANS] 的 N 年生活費區間
+ * - 建議指數ETF／正二ETF／類現金 = 金融資產 D × 建議配置的原型%／正二%／類現金%
  */
 object Clec {
     /** 一列配置：代碼、N 年生活費區間說明、區間下限（含）。依年數由大到小排列 */
@@ -95,7 +96,16 @@ object Clec {
         val indexEtfManual: Boolean = false,
         val leveragedEtfManual: Boolean = false,
         val cashLikeManual: Boolean = false,
-    )
+    ) {
+        /** 建議指數ETF = 金融資產 × 建議配置的原型%；J 算不出來時為 null */
+        val suggestedIndexEtf: Double? get() = suggested?.let { financialAssets * it.corePct }
+
+        /** 建議正二ETF = 金融資產 × 建議配置的正二% */
+        val suggestedLeveragedEtf: Double? get() = suggested?.let { financialAssets * it.leveragedPct }
+
+        /** 建議類現金 = 金融資產 × 建議配置的類現金% */
+        val suggestedCashLike: Double? get() = suggested?.let { financialAssets * it.cashLikePct }
+    }
 
     /**
      * F、G、H 預設用資產配置頁的數字，有手動數值時以手動為準。

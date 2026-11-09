@@ -113,6 +113,21 @@ fun ClecTab(vm: AppViewModel, allocation: AllocationView) {
                     s?.mixText ?: "請先輸入一年生活費",
                     emphasize = true,
                 )
+                // 依 J 的建議配置，把金融資產 D 分成三項建議數值
+                HorizontalDivider()
+                val mix = s?.let { listOf((it.code[0] - '0') * 10, (it.code[1] - '0') * 10, (it.code[2] - '0') * 10) }
+                ClecRow(
+                    "", "建議指數ETF", r.suggestedIndexEtf?.let { twd(it) } ?: "--",
+                    if (mix != null) "= 金融資產 × 原型 ${mix[0]}%" else "請先輸入一年生活費",
+                )
+                ClecRow(
+                    "", "建議正二ETF", r.suggestedLeveragedEtf?.let { twd(it) } ?: "--",
+                    if (mix != null) "= 金融資產 × 正二 ${mix[1]}%" else "請先輸入一年生活費",
+                )
+                ClecRow(
+                    "", "建議類現金", r.suggestedCashLike?.let { twd(it) } ?: "--",
+                    if (mix != null) "= 金融資產 × 類現金 ${mix[2]}%" else "請先輸入一年生活費",
+                )
                 if (s != null && s.code != r.method.code) {
                     Text(
                         "目前選的配置方式是 ${r.method.code}，現況建議是 ${s.code}。",
@@ -192,7 +207,7 @@ private fun AutoNumberField(
 private fun ClecRow(code: String, label: String, value: String, note: String, emphasize: Boolean = false) {
     Column {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text("$code. $label", Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+            Text(if (code.isEmpty()) label else "$code. $label", Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
             Text(
                 value,
                 style = if (emphasize) MaterialTheme.typography.titleLarge else MaterialTheme.typography.titleMedium,

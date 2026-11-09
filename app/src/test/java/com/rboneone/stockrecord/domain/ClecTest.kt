@@ -109,4 +109,29 @@ class ClecTest {
         assertEquals(7.5, all.years!!, 0.0)
         assertEquals("073", all.suggested!!.code)
     }
+
+    @Test
+    fun suggestedAmounts_splitFinancialAssetsByRecommendedMix() {
+        // 金融資產 9,500,000、一年 400,000 → 23.8 年 → 433：原型 40%、正二 30%、類現金 30%
+        val r = Clec.compute(view(6_000_000.0, 2_000_000.0, 1_000_000.0, 500_000.0), 400_000.0, "703")
+        assertEquals("433", r.suggested!!.code)
+        assertEquals(3_800_000.0, r.suggestedIndexEtf!!, 1e-6)
+        assertEquals(2_850_000.0, r.suggestedLeveragedEtf!!, 1e-6)
+        assertEquals(2_850_000.0, r.suggestedCashLike!!, 1e-6)
+        // 三項加起來等於金融資產
+        assertEquals(r.financialAssets, r.suggestedIndexEtf!! + r.suggestedLeveragedEtf!! + r.suggestedCashLike!!, 1e-6)
+    }
+
+    @Test
+    fun suggestedAmounts_followManualFgh_andAreNullWithoutLivingCost() {
+        val v = view(6_000_000.0, 2_000_000.0, 1_000_000.0, 500_000.0)
+        // 手動把 F 改成 1,000,000：D = 1,000,000 + 2,000,000 + 1,500,000 = 4,500,000 → 11.3 年 → 163（原型 10%、正二 60%、類現金 30%）
+        val r = Clec.compute(v, 400_000.0, "433", Clec.Overrides(indexEtf = 1_000_000.0))
+        assertEquals("163", r.suggested!!.code)
+        assertEquals(450_000.0, r.suggestedIndexEtf!!, 1e-6)
+        assertEquals(2_700_000.0, r.suggestedLeveragedEtf!!, 1e-6)
+        assertEquals(1_350_000.0, r.suggestedCashLike!!, 1e-6)
+        val none = Clec.compute(v, 0.0, "433")
+        assertNull(none.suggestedIndexEtf); assertNull(none.suggestedLeveragedEtf); assertNull(none.suggestedCashLike)
+    }
 }
