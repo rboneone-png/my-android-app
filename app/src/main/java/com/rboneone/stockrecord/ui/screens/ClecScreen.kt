@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -78,22 +79,22 @@ fun ClecTab(vm: AppViewModel, allocation: AllocationView) {
                 ClecRow("C", "曝險（Beta）", "%.1f".format(r.beta), "= 第一碼 ${r.method.corePct} + 2 × 第二碼 ${r.method.leveragedPct}")
                 // F、G、H：預設自動帶入資產配置頁的數字；直接修改就變成手動，按「自動」恢復
                 AutoNumberField(
-                    "F. 指數ETF（元）", r.indexEtf, r.indexEtfManual, fText,
+                    "F. 指數ETF", r.indexEtf, r.indexEtfManual, fText, r.indexEtfPct,
                     onText = { fText = it; vm.setClecOverrides(overrides.copy(indexEtf = parseManual(it))) },
                     onAuto = { fText = ""; vm.setClecOverrides(overrides.copy(indexEtf = null)) },
-                    note = if (r.indexEtfManual) "手動輸入（自動值：${twd(allocation.core)}）" else "自動：資產配置頁的原型市值",
+                    note = if (r.indexEtfManual) "手動（自動值 ${twd(allocation.core)}）" else "自動：原型市值",
                 )
                 AutoNumberField(
-                    "G. 正二ETF（元）", r.leveragedEtf, r.leveragedEtfManual, gText,
+                    "G. 正二ETF", r.leveragedEtf, r.leveragedEtfManual, gText, r.leveragedEtfPct,
                     onText = { gText = it; vm.setClecOverrides(overrides.copy(leveragedEtf = parseManual(it))) },
                     onAuto = { gText = ""; vm.setClecOverrides(overrides.copy(leveragedEtf = null)) },
-                    note = if (r.leveragedEtfManual) "手動輸入（自動值：${twd(allocation.leveraged)}）" else "自動：資產配置頁的正二市值",
+                    note = if (r.leveragedEtfManual) "手動（自動值 ${twd(allocation.leveraged)}）" else "自動：正二市值",
                 )
                 AutoNumberField(
-                    "H. 類現金（元）", r.cashLike, r.cashLikeManual, hText,
+                    "H. 類現金", r.cashLike, r.cashLikeManual, hText, r.cashLikePct,
                     onText = { hText = it; vm.setClecOverrides(overrides.copy(cashLike = parseManual(it))) },
                     onAuto = { hText = ""; vm.setClecOverrides(overrides.copy(cashLike = null)) },
-                    note = if (r.cashLikeManual) "手動輸入（自動值：${twd(allocation.cashLike + allocation.cash)}）" else "自動：資產配置頁的類現金市值 + 現金",
+                    note = if (r.cashLikeManual) "手動（自動值 ${twd(allocation.cashLike + allocation.cash)}）" else "自動：類現金 + 現金",
                 )
                 ClecRow("D", "金融資產", twd(r.financialAssets), "= F + G + H")
                 ClecRow(
@@ -189,18 +190,31 @@ private fun AutoNumberField(
     value: Double,
     manual: Boolean,
     manualText: String,
+    /** 佔金融資產的百分比（小數一位）；金融資產為 0 時為 null */
+    pct: Double?,
     onText: (String) -> Unit,
     onAuto: () -> Unit,
     note: String,
 ) {
-    NumberField(
-        value = if (manual) manualText.ifEmpty { if (value != 0.0) Math.round(value).toString() else "" } else Math.round(value).toString(),
-        onValueChange = onText,
-        label = label,
-        modifier = Modifier.fillMaxWidth(),
-        supporting = note,
-        onResetAuto = if (manual) onAuto else null,
-    )
+    // 輸入格縮小，右邊空出來的位置顯示佔比
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Top) {
+        NumberField(
+            value = if (manual) manualText.ifEmpty { if (value != 0.0) Math.round(value).toString() else "" } else Math.round(value).toString(),
+            onValueChange = onText,
+            label = label,
+            modifier = Modifier.weight(1.6f),
+            supporting = note,
+            onResetAuto = if (manual) onAuto else null,
+        )
+        Column(Modifier.weight(0.7f).height(56.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.End) {
+            Text("佔比", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                pct?.let { "%.1f%%".format(it) } ?: "--",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Medium,
+            )
+        }
+    }
 }
 
 @Composable

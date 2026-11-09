@@ -12,6 +12,7 @@ import java.math.RoundingMode
  * - C 曝險（Beta）= 第一碼數值 + 2 × 第二碼數值（703 → 0.7 + 2 × 0.0 = 0.7）
  * - D 金融資產 = F + G + H（F 指數ETF＝原型市值、G 正二ETF＝正二市值、H 類現金＝類現金市值＋現金；
  *   三項預設自動帶入資產配置頁，使用者可手動修改）
+ * - F、G、H 佔比 = 各項 ÷ D × 100%，小數一位（第二位四捨五入）
  * - I 幾倍年生活費 = D ÷ A（A＝一年生活費），小數一位、第二位四捨五入
  * - J 現況建議配置 = 依 I 對照 [PLANS] 的 N 年生活費區間
  * - 建議指數ETF／正二ETF／類現金 = 金融資產 D × 建議配置的原型%／正二%／類現金%
@@ -97,6 +98,18 @@ object Clec {
         val leveragedEtfManual: Boolean = false,
         val cashLikeManual: Boolean = false,
     ) {
+        /** F 佔比 = F ÷ D × 100%，小數一位（第二位四捨五入）；D 為 0 時為 null */
+        val indexEtfPct: Double? get() = pct(indexEtf)
+
+        /** G 佔比 = G ÷ D × 100% */
+        val leveragedEtfPct: Double? get() = pct(leveragedEtf)
+
+        /** H 佔比 = H ÷ D × 100% */
+        val cashLikePct: Double? get() = pct(cashLike)
+
+        private fun pct(part: Double): Double? =
+            if (financialAssets > 0) BigDecimal.valueOf(part / financialAssets * 100).setScale(1, RoundingMode.HALF_UP).toDouble() else null
+
         /** 建議指數ETF = 金融資產 × 建議配置的原型%；J 算不出來時為 null */
         val suggestedIndexEtf: Double? get() = suggested?.let { financialAssets * it.corePct }
 

@@ -134,4 +134,33 @@ class ClecTest {
         val none = Clec.compute(v, 0.0, "433")
         assertNull(none.suggestedIndexEtf); assertNull(none.suggestedLeveragedEtf); assertNull(none.suggestedCashLike)
     }
+
+    @Test
+    fun shares_areFghOverD_roundedToOneDecimalHalfUp() {
+        // D = 6,000,000 + 2,000,000 + 1,500,000 = 9,500,000
+        val r = Clec.compute(view(6_000_000.0, 2_000_000.0, 1_000_000.0, 500_000.0), 400_000.0, "433")
+        assertEquals(63.2, r.indexEtfPct!!, 0.0)     // 63.157… → 63.2
+        assertEquals(21.1, r.leveragedEtfPct!!, 0.0) // 21.052… → 21.1
+        assertEquals(15.8, r.cashLikePct!!, 0.0)     // 15.789… → 15.8
+    }
+
+    @Test
+    fun shares_roundHalfUpAtTheSecondDecimal() {
+        // 1 ÷ 8 = 12.5%；1 ÷ 16 = 6.25% → 6.3%（第二位 5 進位）；D = 16
+        val r = Clec.compute(view(1.0, 0.0, 15.0, 0.0), 1.0, "433")
+        assertEquals(6.3, r.indexEtfPct!!, 0.0)
+        assertEquals(0.0, r.leveragedEtfPct!!, 0.0)
+        assertEquals(93.8, r.cashLikePct!!, 0.0)     // 93.75 → 93.8
+    }
+
+    @Test
+    fun shares_followManualValues_andAreNullWhenDIsZero() {
+        val v = view(6_000_000.0, 2_000_000.0, 1_000_000.0, 500_000.0)
+        val r = Clec.compute(v, 400_000.0, "433", Clec.Overrides(indexEtf = 1_000_000.0))   // D = 4,500,000
+        assertEquals(22.2, r.indexEtfPct!!, 0.0)     // 22.222…
+        assertEquals(44.4, r.leveragedEtfPct!!, 0.0)
+        assertEquals(33.3, r.cashLikePct!!, 0.0)
+        val zero = Clec.compute(view(0.0, 0.0, 0.0, 0.0), 400_000.0, "433")
+        assertNull(zero.indexEtfPct); assertNull(zero.leveragedEtfPct); assertNull(zero.cashLikePct)
+    }
 }
