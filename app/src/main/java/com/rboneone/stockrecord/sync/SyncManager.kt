@@ -40,6 +40,8 @@ class SyncManager(private val app: StockApp) {
             highWatch = db.highWatchDao().getAll(),
             cashFlows = db.cashFlowDao().getAll(),
             loans = db.loanDao().getAll(),
+            clecLivingCost = app.settings(userId).clecLivingCost.value,
+            clecMethod = app.settings(userId).clecMethod.value,
             account = app.accountStore.find(userId)?.let { BackupAccount(it.username, it.salt, it.passwordHash, it.method.name) },
         )
     }
@@ -123,6 +125,8 @@ class SyncManager(private val app: StockApp) {
         }
         app.settings(userId).update(data.fees)
         app.settings(userId).setCash(data.cash)
+        app.settings(userId).setClecLivingCost(data.clecLivingCost)
+        app.settings(userId).setClecMethod(data.clecMethod)
         data.holdingOrder.forEach { (market, symbols) -> app.settings(userId).setHoldingOrder(market, symbols) }
         return data.trades.size + data.dividends.size
     }

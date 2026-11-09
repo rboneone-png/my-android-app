@@ -95,4 +95,14 @@ class BackupTest {
         assertEquals(listOf(loan), data.loans)
         assertEquals(emptyList<com.rboneone.stockrecord.data.Loan>(), Backup.parse("""{"version":1,"exportedAt":1,"trades":[],"dividends":[]}""").loans)
     }
+
+    @Test
+    fun clecSettingsRoundTrip_andDefaultsForOldBackup() {
+        val data = Backup.parse(Backup.serialize(BackupData(1, emptyList(), emptyList(), FeeSettings(), clecLivingCost = 600_000.0, clecMethod = "523")))
+        assertEquals(600_000.0, data.clecLivingCost, 0.0)
+        assertEquals("523", data.clecMethod)
+        val old = Backup.parse("""{"version":1,"exportedAt":1,"trades":[],"dividends":[]}""")
+        assertEquals(0.0, old.clecLivingCost, 0.0)
+        assertEquals("433", old.clecMethod)
+    }
 }

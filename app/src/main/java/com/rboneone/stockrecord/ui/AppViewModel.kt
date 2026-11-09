@@ -135,6 +135,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     val holdingOrder: StateFlow<Map<Market, List<String>>> = settingsRepository.holdingOrder
 
+    // ---- CLEC 退休投資策略 ----
+    val clecLivingCost: StateFlow<Double> = settingsRepository.clecLivingCost
+    val clecMethod: StateFlow<String> = settingsRepository.clecMethod
+    fun setClecLivingCost(amount: Double) = settingsRepository.setClecLivingCost(amount)
+    fun setClecMethod(code: String) = settingsRepository.setClecMethod(code)
+
     fun setHoldingOrder(market: Market, symbols: List<String>) = settingsRepository.setHoldingOrder(market, symbols)
 
     /**

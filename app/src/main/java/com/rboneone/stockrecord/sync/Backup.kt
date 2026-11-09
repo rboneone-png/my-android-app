@@ -44,6 +44,9 @@ data class BackupData(
     val account: BackupAccount? = null,
     /** 貸款（舊版備份沒有，還原後為空） */
     val loans: List<Loan> = emptyList(),
+    /** CLEC 退休投資策略的設定 */
+    val clecLivingCost: Double = 0.0,
+    val clecMethod: String = "433",
 )
 
 /** 備份檔格式（JSON），只含密碼的加鹽雜湊值，不含明碼 */
@@ -132,6 +135,8 @@ object Backup {
         return JSONObject()
             .put("version", VERSION)
             .put("loans", loans)
+            .put("clecLivingCost", data.clecLivingCost)
+            .put("clecMethod", data.clecMethod)
             .also { o ->
                 data.account?.let {
                     o.put("account", JSONObject().put("username", it.username).put("salt", it.salt)
@@ -318,6 +323,8 @@ object Backup {
                 BackupAccount(it.getString("username"), it.getString("salt"), it.getString("hash"), it.optString("method", "PASSWORD"))
             },
             loans,
+            root.optDouble("clecLivingCost", 0.0).takeUnless { it.isNaN() } ?: 0.0,
+            root.optString("clecMethod", "433").ifEmpty { "433" },
         )
     }
 }

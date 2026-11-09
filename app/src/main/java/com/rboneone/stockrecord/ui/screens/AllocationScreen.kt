@@ -26,9 +26,12 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -71,10 +74,21 @@ fun AllocationScreen(vm: AppViewModel) {
         expandedGroups = if (key in expandedGroups) expandedGroups - key else expandedGroups + key
     }
 
+    // 兩個分頁：資產配置、CLEC退休投資策略
+    var tab by rememberSaveable { mutableIntStateOf(0) }
+
     Column(Modifier.fillMaxSize()) {
         ScreenTopBar("資產配置")
+        TabRow(selectedTabIndex = tab) {
+            Tab(selected = tab == 0, onClick = { tab = 0 }, text = { Text("資產配置") })
+            Tab(selected = tab == 1, onClick = { tab = 1 }, text = { Text("CLEC退休投資策略") })
+        }
         val a = allocation
         if (a == null) return@Column
+        if (tab == 1) {
+            ClecTab(vm, a)
+            return@Column
+        }
         LazyColumn(
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),

@@ -38,6 +38,14 @@ class SettingsRepository(context: Context, userId: String) {
     /** 資產配置用的現金（台幣），由使用者輸入 */
     val cash: StateFlow<Double> = _cash.asStateFlow()
 
+    private val _clecLivingCost = MutableStateFlow(prefs.double(KEY_CLEC_LIVING, 0.0))
+    /** CLEC 退休投資策略：一年生活費（元） */
+    val clecLivingCost: StateFlow<Double> = _clecLivingCost.asStateFlow()
+
+    private val _clecMethod = MutableStateFlow(prefs.getString(KEY_CLEC_METHOD, null) ?: "433")
+    /** CLEC 退休投資策略：配置方式代碼（例如 433） */
+    val clecMethod: StateFlow<String> = _clecMethod.asStateFlow()
+
     private val _holdingOrder = MutableStateFlow(
         Market.entries.associateWith { m -> prefs.getString(orderKey(m), null).orEmpty().split(',').filter { it.isNotEmpty() } }
     )
@@ -101,6 +109,16 @@ class SettingsRepository(context: Context, userId: String) {
         _pledgeIncludeLeveraged.value = include
     }
 
+    fun setClecLivingCost(amount: Double) {
+        prefs.edit().putString(KEY_CLEC_LIVING, amount.toString()).apply()
+        _clecLivingCost.value = amount
+    }
+
+    fun setClecMethod(code: String) {
+        prefs.edit().putString(KEY_CLEC_METHOD, code).apply()
+        _clecMethod.value = code
+    }
+
     fun setCash(amount: Double) {
         prefs.edit().putString(KEY_CASH, amount.toString()).apply()
         _cash.value = amount
@@ -140,6 +158,8 @@ class SettingsRepository(context: Context, userId: String) {
         private const val KEY_US_DIV_TAX = "us_dividend_tax"
         private const val KEY_REFRESH = "refresh_seconds"
         private const val KEY_CASH = "cash_twd"
+        private const val KEY_CLEC_LIVING = "clec_living_cost"
+        private const val KEY_CLEC_METHOD = "clec_method"
         private const val KEY_PLEDGE_ALERT_DAY = "pledge_alert_day"
         private const val KEY_PLEDGE_INCLUDE_LEV = "pledge_include_leveraged"
         private const val KEY_SYNC_AUTO = "sync_auto"
