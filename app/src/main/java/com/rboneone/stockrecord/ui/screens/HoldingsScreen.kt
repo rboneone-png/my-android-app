@@ -69,6 +69,10 @@ import com.rboneone.stockrecord.ui.formatMoney
 import com.rboneone.stockrecord.ui.formatPct
 import com.rboneone.stockrecord.ui.formatPrice
 import com.rboneone.stockrecord.ui.formatShares
+import com.rboneone.stockrecord.ui.formatSignedWhole
+import com.rboneone.stockrecord.ui.roundHalfAway
+import com.rboneone.stockrecord.ui.theme.LossGreen
+import com.rboneone.stockrecord.ui.theme.ProfitRed
 import com.rboneone.stockrecord.ui.formatSignedAmount
 import com.rboneone.stockrecord.ui.theme.pnlColor
 import kotlinx.coroutines.delay
@@ -445,6 +449,22 @@ private fun PositionRow(p: Position, hidden: Boolean, dragModifier: Modifier = M
                 LabelValue("總成本", money(h.totalCost))
                 p.unrealizedPnl?.let { LabelValue("未實現損益", signed(it), pnl = it.takeIf { !hidden }) }
                 LabelValue("持有期間股息", money(h.dividendsSinceOpen))
+                // 今日損益 = 持有股數 × 今日漲跌，四捨五入到整數；上漲紅、下跌綠、平盤灰
+                val dayPnl = p.dayPnl?.let { roundHalfAway(it) }
+                LabelValue(
+                    "今日損益",
+                    when {
+                        dayPnl == null -> "--"
+                        hidden -> HIDDEN
+                        else -> formatSignedWhole(dayPnl)
+                    },
+                    valueColor = when {
+                        dayPnl == null || hidden -> null
+                        dayPnl > 0 -> ProfitRed
+                        dayPnl < 0 -> LossGreen
+                        else -> Color.Gray
+                    },
+                )
                 if (h.realizedPnl != 0.0) {
                     LabelValue("已實現損益", signed(h.realizedPnl), pnl = h.realizedPnl.takeIf { !hidden })
                 }
@@ -474,14 +494,14 @@ private fun ClosedRow(p: Position, hidden: Boolean) {
 }
 
 @Composable
-fun LabelValue(label: String, value: String, pnl: Double? = null) {
+fun LabelValue(label: String, value: String, pnl: Double? = null, valueColor: Color? = null) {
     Row(Modifier.fillMaxWidth().padding(top = 4.dp)) {
         Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
         Text(
             value,
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.Medium,
-            color = pnl?.let { pnlColor(it) } ?: MaterialTheme.colorScheme.onSurface,
+            color = valueColor ?: pnl?.let { pnlColor(it) } ?: MaterialTheme.colorScheme.onSurface,
         )
     }
 }

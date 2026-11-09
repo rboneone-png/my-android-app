@@ -48,6 +48,13 @@ fun formatAmount(market: Market, value: Double): String = when (market) {
 fun formatSignedAmount(market: Market, value: Double): String =
     (if (value > 0.0001) "+" else "") + formatAmount(market, value)
 
+/** 四捨五入到整數（0.5 一律進位，負數也一樣往遠離 0 的方向，例如 −2.5 → −3） */
+fun roundHalfAway(value: Double): Long =
+    if (value >= 0) Math.floor(value + 0.5).toLong() else -Math.floor(-value + 0.5).toLong()
+
+/** 整數金額加正負號，例如 +1,234、-567、0 */
+fun formatSignedWhole(value: Long): String = (if (value > 0) "+" else "") + "%,d".format(value)
+
 /** 月報酬格子用的精簡金額，例如 +34.8萬、-4.86萬、+5,070 */
 fun formatWan(value: Double): String {
     val sign = if (value > 0.0001) "+" else if (value < -0.0001) "-" else ""

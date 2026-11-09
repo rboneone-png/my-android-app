@@ -25,4 +25,21 @@ class FormatTest {
         assertEquals(0.0, stepShares(null, -1), 0.0)
         assertEquals(1_000.5 + 1_000.0, stepShares(1_000.5, 1), 1e-9)   // 美股零股
     }
+
+    @Test
+    fun roundHalfAway_roundsHalfUpForBothSigns() {
+        assertEquals(3L, roundHalfAway(2.5)); assertEquals(2L, roundHalfAway(2.49))
+        assertEquals(-3L, roundHalfAway(-2.5)); assertEquals(-2L, roundHalfAway(-2.49))
+        assertEquals(0L, roundHalfAway(0.4)); assertEquals(0L, roundHalfAway(-0.4))
+        // 67,000 股 × 2.66 = 178,220；67,001 股 × 0.125 = 8,375.125
+        assertEquals(178_220L, roundHalfAway(67_000 * 2.66))
+        assertEquals(8_375L, roundHalfAway(67_001 * 0.125))
+    }
+
+    @Test
+    fun formatSignedWhole_addsPlusOnlyForPositive() {
+        assertEquals("+178,220", formatSignedWhole(178_220))
+        assertEquals("-1,234", formatSignedWhole(-1_234))
+        assertEquals("0", formatSignedWhole(0))
+    }
 }
