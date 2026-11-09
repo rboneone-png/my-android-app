@@ -84,4 +84,42 @@ class ValuationTest {
         // 沒有自訂順序時依代號
         assertEquals(listOf("0050", "0056", "2330", "2884"), positions.inCustomOrder(emptyList()).map { it.holding.symbol })
     }
+
+    // 報價時間：2026-11-09 11:00（台北）
+    private val marketTime = java.time.LocalDate.of(2026, 11, 9).atStartOfDay(java.time.ZoneOffset.UTC).toEpochSecond() + 3 * 3600
+    private val today = java.time.LocalDate.of(2026, 11, 9).toEpochDay()
+
+    private fun buy(date: Long, shares: Double, price: Double, fee: Double = 0.0) =
+        com.rboneone.stockrecord.data.Trade(1, Market.TW, "0050", "0050", com.rboneone.stockrecord.data.TradeType.BUY, date, shares, price, fee, 0.0)
+
+    private fun dayPnl(shares: Double, trades: List<com.rboneone.stockrecord.data.Trade>): Double {
+        val h = Holding(Market.TW, "0050", "0050", shares, 1_000_000.0, 0.0)
+        val q = Quote(Market.TW, "0050", 30.0, 28.0, marketTime, 0)
+        return Valuation.position(h, q, null, settings, trades).dayPnl!!
+    }
+
+    @Test
+    fun dayPnl_oldHoldingsUseYesterdayClose() {
+        // 沒有當天買進：1,000 股 × (30 − 28) = 2,000
+        assertEquals(2_000.0, dayPnl(1000.0, listOf(buy(today - 5, 1000.0, 25.0))), 1e-9)
+    }
+
+    @Test
+    fun dayPnl_todaysBuyUsesBuyCost() {
+        // 舊 600 股 × (30 − 28) = 1,200；今天買 400 股成本 29.5 → 400 × 0.5 = 200
+        val trades = listOf(buy(today - 5, 600.0, 25.0), buy(today, 400.0, 29.5))
+        assertEquals(1_400.0, dayPnl(1000.0, trades), 1e-9)
+    }
+
+    @Test
+    fun dayPnl_todaysBuyCostIncludesFee() {
+        // 今天買 1,000 股 @29.5 手續費 500 → 每股成本 30 → 損益 0（不是 +1,500）
+        assertEquals(0.0, dayPnl(1000.0, listOf(buy(today, 1000.0, 29.5, 500.0))), 1e-9)
+    }
+
+    @Test
+    fun dayPnl_boughtSharesCannotExceedHeldShares() {
+        // 今天買 1,000 股又賣掉 600 股：只剩 400 股，全部視為今天買的
+        assertEquals(400 * (30.0 - 29.5), dayPnl(400.0, listOf(buy(today, 1000.0, 29.5))), 1e-9)
+    }
 }

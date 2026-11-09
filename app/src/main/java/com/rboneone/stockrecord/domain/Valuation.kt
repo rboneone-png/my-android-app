@@ -15,6 +15,10 @@ data class Position(
     val marketValue: Double?,
     /** 市值扣除預估賣出手續費、交易稅後，再減去成本 */
     val unrealizedPnl: Double?,
+    /** 報價當天（交易日）買進、目前還持有的股數；用來算今日損益（今天買的用買價算） */
+    val todayBuyShares: Double = 0.0,
+    /** 當天買進的每股成本（含手續費） */
+    val todayBuyCostPerShare: Double = 0.0,
 ) {
     /** 總損益：未實現損益加上持有期間領到的股息（預扣賣出費用） */
     val totalPnl: Double?
@@ -27,9 +31,18 @@ data class Position(
     val dayChangePct: Double?
         get() = quote?.takeIf { it.previousClose > 0 }?.let { (it.price - it.previousClose) / it.previousClose * 100 }
 
-    /** 今日損益：股數 × 今日漲跌 */
+    /**
+     * 今日損益：舊持股 = 股數 × (現價 − 昨收)；今天買進的股數 = 股數 × (現價 − 當天買進成本)。
+     * 這樣今天買進的部分只算買進之後的漲跌，並與持股日損益合計一致（當天沒有賣出時）。
+     */
     val dayPnl: Double?
-        get() = dayChange?.takeIf { holding.isOpen }?.let { it * holding.shares }
+        get() {
+            val q = quote ?: return null
+            if (!holding.isOpen) return null
+            val bought = todayBuyShares.coerceIn(0.0, holding.shares)
+            val older = holding.shares - bought
+            return older * (q.price - q.previousClose) + bought * (q.price - todayBuyCostPerShare)
+        }
 }
 
 data class MarketSummary(
@@ -77,14 +90,25 @@ object Valuation {
             Market.US -> settings.usCommission
         }
 
-    fun position(holding: Holding, quote: Quote?, name: String?, settings: FeeSettings): Position {
+    fun position(
+        holding: Holding,
+        quote: Quote?,
+        name: String?,
+        settings: FeeSettings,
+        /** 這檔股票的交易紀錄，用來找出報價當天買進的部分 */
+        trades: List<Trade> = emptyList(),
+    ): Position {
         val displayName = if (holding.name != holding.symbol) holding.name else name ?: holding.symbol
         if (!holding.isOpen || quote == null) {
             return Position(holding, displayName, quote, marketValue = null, unrealizedPnl = null)
         }
         val mv = quote.price * holding.shares
         val sellCost = estimatedSellCost(holding.market, holding.symbol, mv, settings)
-        return Position(holding, displayName, quote, mv, mv - sellCost - holding.totalCost)
+        val day = quote.tradingDay()
+        val bought = trades.filter { it.type == com.rboneone.stockrecord.data.TradeType.BUY && it.date == day }
+        val boughtShares = bought.sumOf { it.shares }
+        val perShare = if (boughtShares > 0) bought.sumOf { it.amount + it.fee } / boughtShares else 0.0
+        return Position(holding, displayName, quote, mv, mv - sellCost - holding.totalCost, boughtShares, perShare)
     }
 
     fun build(
@@ -98,7 +122,7 @@ object Valuation {
     ): PortfolioView {
         val positions = holdings.map {
             val key = it.market to it.symbol
-            position(it, quotes[key], names[key], settings)
+            position(it, quotes[key], names[key], settings, trades.filter { t -> t.market == it.market && t.symbol == it.symbol })
         }
         val summaries = Market.entries.mapNotNull { market ->
             val inMarket = positions.filter { it.holding.market == market }
