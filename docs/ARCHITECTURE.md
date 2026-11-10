@@ -1,4 +1,4 @@
-# 股票記帳 — 架構說明（2.9.0）
+# 股票記帳 — 架構說明（2.10.0）
 
 ## 總覽
 
@@ -39,7 +39,7 @@ app/src/main/java/com/rboneone/stockrecord/
 ├── alerts/                股價通知與質押維持率通知（檢查、背景工作、系統通知）
 ├── sync/                  備份格式、Google Drive、備份檔匯入匯出、自動同步
   - 1.13.1：授權失效時自動關閉並提示重新連結、token 過期自動重試（`GoogleDrive.withToken`）
-├── export/                Excel（.xlsx）產生
+├── export/                Excel（.xlsx）產生與讀取（XlsxWriter／XlsxReader／ExcelImporter）
 └── ui/                    ViewModel、導覽、各頁面、格式化、主題色
 ```
 
@@ -84,6 +84,7 @@ app/src/main/java/com/rboneone/stockrecord/
 | `HighWatch` | 股票漲跌：顯示用最高價（盤中創新高取現價）、漲跌幅 = 現價 ÷ 最高價 |
 | `DailyReturns` | 月報酬月曆的每日損益與報酬率（週／月以連乘）；今天以即時報價計算（`LiveClose`），持股頁的持股日損益用同一個算式（`today`） |
 | `AssetTrend` | 資產走勢：每月月底持股市值與平均成本法成本、圖表刻度 |
+| `ExcelImporter` | 匯入 Excel：依標題列名稱對應欄位、日期／數字／代號容錯、費用自動計算、錯誤列號；`plan()` 算合併計畫（新增略過重複、取代、匯入後股數不足檢查）。`XlsxReader` 用 DOM 讀 .xlsx（共用字串、內嵌字串、日期序號） |
 | `MonthlyIncome` | 每月已實現損益與股利（圖表、Excel） |
 
 ## 主要流程

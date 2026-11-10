@@ -33,6 +33,8 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import com.rboneone.stockrecord.export.ImportResult
+import com.rboneone.stockrecord.export.ImportMode
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -317,11 +319,82 @@ private fun ExportSection(vm: AppViewModel) {
     val launcher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
     ) { uri -> uri?.let { vm.exportExcel(it) } }
-    Section("匯出 Excel") {
-        Hint("匯出交易紀錄、持股、股利、已實現損益、每月損益、質押共 6 個工作表。可存到手機或 Google 雲端硬碟。")
+    val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    var parsed by remember { mutableStateOf<ImportResult?>(null) }
+    var confirmReplace by remember { mutableStateOf(false) }
+    val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) scope.launch {
+            vm.readExcel(uri)
+                .onSuccess { parsed = it }
+                .onFailure { Toast.makeText(context, "匯入失敗：${it.message}", Toast.LENGTH_LONG).show() }
+        }
+    }
+    Section("匯出／匯入 Excel") {
+        Hint("匯出：交易紀錄、持股、股利、已實現損益、每月損益、質押共 6 個工作表，可存到手機或 Google 雲端硬碟。")
         Button(onClick = { launcher.launch(vm.exportFileName()) }, modifier = Modifier.fillMaxWidth()) {
             Text("匯出 Excel")
         }
+        HorizontalDivider()
+        Hint(
+            "匯入：讀取「交易紀錄」「股利」兩個工作表（格式同匯出，依標題列名稱對應欄位，順序可不同）。" +
+                "手續費、交易稅、扣稅留空時，依目前的費率設定自動計算。建議先匯出一次當範本，改完再匯入。"
+        )
+        OutlinedButton(
+            onClick = { importLauncher.launch(arrayOf("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "application/octet-stream")) },
+            modifier = Modifier.fillMaxWidth(),
+        ) { Text("匯入 Excel") }
+    }
+
+    parsed?.let { p ->
+        AlertDialog(
+            onDismissRequest = { parsed = null },
+            title = { Text("匯入 Excel") },
+            text = {
+                Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("讀到 ${p.trades.size} 筆買賣、${p.dividends.size} 筆股利。")
+                    if (p.errors.isNotEmpty()) {
+                        Text("有 ${p.errors.size} 處讀不懂，這些列不會匯入：", color = MaterialTheme.colorScheme.error)
+                        p.errors.take(8).forEach { Text("・$it", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
+                        if (p.errors.size > 8) Text("…還有 ${p.errors.size - 8} 處", style = MaterialTheme.typography.bodySmall)
+                    }
+                    Text(
+                        "「新增」會加到現有資料，和現有紀錄完全相同的會略過（同一個檔案匯入兩次不會重複）；" +
+                            "「取代」會先刪除現有的所有買賣與股利再匯入。匯入後若賣出超過持有股數，會整批不匯入。",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = p.trades.isNotEmpty() || p.dividends.isNotEmpty(),
+                    onClick = { vm.applyImport(p, ImportMode.ADD); parsed = null },
+                ) { Text("新增") }
+            },
+            dismissButton = {
+                Row {
+                    TextButton(
+                        enabled = p.trades.isNotEmpty() || p.dividends.isNotEmpty(),
+                        onClick = { confirmReplace = true },
+                    ) { Text("取代現有資料", color = MaterialTheme.colorScheme.error) }
+                    TextButton(onClick = { parsed = null }) { Text("取消") }
+                }
+            },
+        )
+    }
+    if (confirmReplace && parsed != null) {
+        AlertDialog(
+            onDismissRequest = { confirmReplace = false },
+            title = { Text("取代現有資料？") },
+            text = { Text("會刪除目前所有買賣與股利紀錄，改用 Excel 裡的內容，無法復原。建議先到「雲端備份」備份一次。") },
+            confirmButton = {
+                TextButton(onClick = {
+                    parsed?.let { vm.applyImport(it, ImportMode.REPLACE) }
+                    confirmReplace = false; parsed = null
+                }) { Text("取代", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = { TextButton(onClick = { confirmReplace = false }) { Text("取消") } },
+        )
     }
 }
 

@@ -2,6 +2,7 @@ package com.rboneone.stockrecord.ui
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
+import androidx.room.withTransaction
 import androidx.lifecycle.viewModelScope
 import com.rboneone.stockrecord.StockApp
 import com.rboneone.stockrecord.auth.Account
@@ -623,6 +624,49 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 "已匯出 Excel（${sheets.size} 個工作表）"
             }.getOrElse { "匯出失敗：${it.message}" }
+        }
+    }
+
+    // ---- 匯入 Excel ----
+
+    /** 讀取使用者選的 Excel 檔（IO 執行緒）；失敗回傳說明 */
+    suspend fun readExcel(uri: android.net.Uri): Result<com.rboneone.stockrecord.export.ImportResult> =
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            runCatching {
+                val sheets = (app.contentResolver.openInputStream(uri) ?: error("無法讀取檔案")).use {
+                    com.rboneone.stockrecord.export.XlsxReader.read(it)
+                }
+                val parsed = com.rboneone.stockrecord.export.ExcelImporter.parse(sheets, settings.value)
+                if (parsed.sheetsFound.isEmpty()) error("找不到「交易紀錄」或「股利」工作表（請用本 App 匯出的格式）")
+                parsed
+            }.recoverCatching { e ->
+                throw IllegalStateException(
+                    if (e is java.io.IOException || e is org.xml.sax.SAXException) "這不是有效的 Excel 檔（.xlsx）" else (e.message ?: "讀取失敗")
+                )
+            }
+        }
+
+    /** 套用匯入：算好計畫後在同一個交易裡寫入；股數對不起來時不匯入 */
+    fun applyImport(parsed: com.rboneone.stockrecord.export.ImportResult, mode: com.rboneone.stockrecord.export.ImportMode) {
+        viewModelScope.launch {
+            _message.value = runCatching {
+                db.withTransaction {
+                    val plan = com.rboneone.stockrecord.export.ExcelImporter.plan(
+                        tradeDao.getAll(), dividendDao.getAll(), parsed, mode,
+                    )
+                    plan.shortage?.let { error(it) }
+                    if (mode == com.rboneone.stockrecord.export.ImportMode.REPLACE) {
+                        tradeDao.deleteAll(); dividendDao.deleteAll()
+                    }
+                    tradeDao.insertAll(plan.newTrades)
+                    dividendDao.insertAll(plan.newDividends)
+                    buildString {
+                        append("已匯入 ${plan.newTrades.size} 筆買賣、${plan.newDividends.size} 筆股利")
+                        if (plan.duplicatesSkipped > 0) append("（略過重複 ${plan.duplicatesSkipped} 筆）")
+                    }
+                }
+            }.getOrElse { "匯入失敗：${it.message}" }
+            refreshQuotes(force = true, quiet = true)
         }
     }
 

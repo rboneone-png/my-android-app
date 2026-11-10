@@ -21,6 +21,12 @@ object ExcelExporter {
     private fun shares(v: Double) = Cell.Number(v, if (v % 1.0 == 0.0) 0 else 2)
     private fun opt(v: Double?, make: (Double) -> Cell) = v?.let(make) ?: Cell.Empty
 
+    private fun taxTypeShort(t: com.rboneone.stockrecord.data.TaxType) = when (t) {
+        com.rboneone.stockrecord.data.TaxType.STOCK -> "一般"
+        com.rboneone.stockrecord.data.TaxType.ETF -> "ETF"
+        com.rboneone.stockrecord.data.TaxType.DAY_TRADE -> "當沖"
+    }
+
     fun buildSheets(
         trades: List<Trade>,
         dividends: List<Dividend>,
@@ -32,15 +38,17 @@ object ExcelExporter {
         return listOf(
             Sheet(
                 "交易紀錄",
-                listOf("日期", "市場", "代號", "名稱", "買賣", "股數", "成交價", "成交金額", "手續費", "交易稅", "備註"),
+                listOf("日期", "市場", "代號", "名稱", "買賣", "股數", "成交價", "成交金額", "手續費", "交易稅", "備註", "稅別"),
                 trades.sortedWith(compareBy({ it.date }, { it.id })).map {
                     listOf(
                         date(it.date), text(it.market.label), text(it.symbol), text(it.name), text(it.type.label),
                         shares(it.shares), dec(it.price), money(it.market, it.amount),
                         money(it.market, it.fee), money(it.market, it.tax), text(it.note),
+                        // 稅別：台股才有（匯入時用來還原一般／ETF／當沖）
+                        text(if (it.market == Market.TW) taxTypeShort(it.taxType) else ""),
                     )
                 },
-                widths = listOf(12, 6, 10, 18, 6, 10, 10, 14, 10, 10, 20),
+                widths = listOf(12, 6, 10, 18, 6, 10, 10, 14, 10, 10, 20, 8),
             ),
             Sheet(
                 "持股",
