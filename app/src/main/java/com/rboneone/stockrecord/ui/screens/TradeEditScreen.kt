@@ -250,16 +250,16 @@ fun TradeEditScreen(vm: AppViewModel, tradeId: Long, onDone: () -> Unit) {
             )
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 NumberField(
+                    priceText, { priceText = it },
+                    if (market == Market.TW) "成交價（元）" else "成交價（美元）",
+                    modifier = Modifier.weight(1f),
+                )
+                NumberField(
                     sharesText, { sharesText = it }, "股數",
                     supporting = if (market == Market.TW) "1 張 = 1000 股" else null,
                     // 上下箭頭：每按一次增減 1000 股
                     onStep = { dir -> sharesText = plainNumber(stepShares(sharesText.toAmountOrNull(), dir)); error = null },
                     stepDescription = " 1000 股",
-                    modifier = Modifier.weight(1f),
-                )
-                NumberField(
-                    priceText, { priceText = it },
-                    if (market == Market.TW) "成交價（元）" else "成交價（美元）",
                     modifier = Modifier.weight(1f),
                 )
             }
