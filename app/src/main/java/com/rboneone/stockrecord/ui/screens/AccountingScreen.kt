@@ -14,7 +14,8 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
+import com.rboneone.stockrecord.ui.theme.AppCard as Card
+import com.rboneone.stockrecord.ui.theme.HeroCard
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -100,10 +101,7 @@ fun AccountingScreen(
 
             OutlinedButton(onClick = onAddLoan, modifier = Modifier.fillMaxWidth()) { Text("新增貸款") }
 
-            Card(
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                modifier = Modifier.fillMaxWidth(),
-            ) {
+            HeroCard(modifier = Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(
                         "${formatDate(today)}・新台幣",

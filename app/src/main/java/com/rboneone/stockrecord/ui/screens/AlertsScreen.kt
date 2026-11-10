@@ -20,7 +20,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
+import com.rboneone.stockrecord.ui.theme.AppCard as Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
@@ -70,7 +70,7 @@ fun AlertsScreen(vm: AppViewModel, onEdit: (Long) -> Unit) {
         Column(Modifier.fillMaxSize()) {
             ScreenTopBar("股價通知")
             LazyColumn(
-                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 96.dp),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 96.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 if (!granted) {
@@ -122,6 +122,8 @@ fun AlertsScreen(vm: AppViewModel, onEdit: (Long) -> Unit) {
             }
         }
         ExtendedFloatingActionButton(
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
             onClick = { onEdit(0) },
             icon = { Icon(Icons.Filled.Add, contentDescription = null) },
             text = { Text("新增通知") },

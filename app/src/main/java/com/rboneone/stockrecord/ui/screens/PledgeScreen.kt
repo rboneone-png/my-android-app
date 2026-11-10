@@ -23,7 +23,8 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
+import com.rboneone.stockrecord.ui.theme.AppCard as Card
+import com.rboneone.stockrecord.ui.theme.HeroCard
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.HorizontalDivider
@@ -171,6 +172,8 @@ fun PledgeScreen(vm: AppViewModel, onEdit: (Long) -> Unit, onAdd: () -> Unit, on
                 )
             }
             ExtendedFloatingActionButton(
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
                 onClick = onAdd,
                 icon = { Icon(Icons.Filled.Add, contentDescription = null) },
                 text = { Text("新增質押") },
@@ -243,10 +246,7 @@ private fun ReturnedRow(p: Pledge, onClick: () -> Unit) {
 @Composable
 private fun SummaryCard(v: PledgeView, includeLeveraged: Boolean, onIncludeLeveragedChange: (Boolean) -> Unit) {
     val ratio = v.ratio
-    Card(
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-        modifier = Modifier.fillMaxWidth().padding(16.dp),
-    ) {
+    HeroCard(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {

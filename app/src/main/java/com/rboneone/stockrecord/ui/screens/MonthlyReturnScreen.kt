@@ -239,7 +239,7 @@ private fun DayCell(dayOfMonth: Int, inMonth: Boolean, result: DayReturn?, modif
         modifier
             .height(80.dp)
             .clip(RoundedCornerShape(8.dp))
-            .background(if (result != null) cellColor(result.pnl) else Color.Transparent)
+            .background(if (result != null) cellColor(result.pnl) else MaterialTheme.colorScheme.surfaceContainerLowest)
             .border(1.dp, outline, RoundedCornerShape(8.dp))
             .padding(horizontal = 2.dp, vertical = 4.dp),
     ) {

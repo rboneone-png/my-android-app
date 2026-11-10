@@ -1,4 +1,4 @@
-# 股票記帳 — 架構說明（2.6.0）
+# 股票記帳 — 架構說明（2.7.0）
 
 ## 總覽
 
@@ -107,3 +107,10 @@ app/src/main/java/com/rboneone/stockrecord/
 
 AndroidX（Compose、Room、Navigation、Lifecycle、WorkManager、Biometric）、Google Play Services Auth（Drive 授權）、
 sh.calvin.reorderable（拖曳排序）。股價資料來自 Google 財經、證交所與 Yahoo Finance 的非官方介面，可能變動；解析分別集中在 `network/GoogleFinance.kt`、`network/TwseMis.kt`、`network/YahooApi.kt`，來源順序在 `MarketRepository.realtimeQuote()`。
+
+
+## 外觀（2.7.0）
+- `ui/theme/Theme.kt`：固定的亮／暗色配色（不用動態色彩）、圓角（Shapes）、字型樣式（標題加粗、數字 tnum 等寬）。
+- `AppCard`：全 App 共用的白底圓角輕陰影卡片；各畫面以 `import ...AppCard as Card` 取代 Material 的 `Card`。`HeroCard`：總覽摘要用的淡藍漸層卡片。
+- `ScreenTopBar`（`Common.kt`）：淡藍底頂欄；`StockRecordApp` 的狀態列區塊與頂欄同色（Scaffold 只處理左右與下方的系統邊距）。
+- 改外觀時請用 Robolectric + Roborazzi 截圖檢查（暫時加進 build.gradle.kts，檢查完移除，不留在儲存庫）。

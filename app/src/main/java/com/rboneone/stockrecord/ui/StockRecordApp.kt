@@ -3,6 +3,19 @@ package com.rboneone.stockrecord.ui
 import android.net.Uri
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.ui.unit.dp
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.draw.shadow
+import androidx.compose.foundation.layout.windowInsetsTopHeight
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.background
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Add
@@ -90,9 +103,11 @@ fun StockRecordApp(vm: AppViewModel) {
     val pledgeTabColor = pledgeColor(pledgeView?.ratio)
 
     Scaffold(
+        // 狀態列那一條由下面的色塊自己畫（和頂欄同色），Scaffold 只處理左右與下方
+        contentWindowInsets = WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom),
         bottomBar = {
             if (currentTab != null) {
-                NavigationBar {
+                NavigationBar(tonalElevation = 0.dp, modifier = Modifier.shadow(8.dp)) {
                     Tab.entries.forEach { tab ->
                         NavigationBarItem(
                             selected = tab == currentTab,
@@ -125,7 +140,11 @@ fun StockRecordApp(vm: AppViewModel) {
         floatingActionButton = {
             if (currentTab == Tab.HOLDINGS) {
                 Box {
-                    FloatingActionButton(onClick = { addMenu = true }) {
+                    FloatingActionButton(
+                        onClick = { addMenu = true },
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary,
+                    ) {
                         Icon(Icons.Filled.Add, contentDescription = "新增")
                     }
                     DropdownMenu(expanded = addMenu, onDismissRequest = { addMenu = false }) {
@@ -142,10 +161,15 @@ fun StockRecordApp(vm: AppViewModel) {
             }
         },
     ) { padding ->
+      Column(Modifier.padding(padding)) {
+        Spacer(
+            Modifier.fillMaxWidth().windowInsetsTopHeight(WindowInsets.statusBars)
+                .background(MaterialTheme.colorScheme.primaryContainer)
+        )
         NavHost(
             navController = nav,
             startDestination = Tab.HOLDINGS.route,
-            modifier = Modifier.padding(padding),
+            modifier = Modifier.weight(1f),
         ) {
             composable(Tab.HOLDINGS.route) {
                 HoldingsScreen(
@@ -282,5 +306,6 @@ fun StockRecordApp(vm: AppViewModel) {
                 )
             }
         }
+      }
     }
 }

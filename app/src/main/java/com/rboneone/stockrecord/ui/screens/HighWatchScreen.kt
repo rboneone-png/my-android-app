@@ -1,6 +1,7 @@
 package com.rboneone.stockrecord.ui.screens
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -92,7 +93,7 @@ fun HighWatchTab(vm: AppViewModel, refreshSeconds: Int) {
             LazyColumn(
                 state = listState,
                 contentPadding = PaddingValues(bottom = 96.dp),
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceContainerLowest),
             ) {
                 items(order, key = { it.id }) { item ->
                     ReorderableItem(reorderState, key = item.id) { dragging ->
@@ -130,6 +131,8 @@ fun HighWatchTab(vm: AppViewModel, refreshSeconds: Int) {
             }
         }
         ExtendedFloatingActionButton(
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
             onClick = { adding = true },
             icon = { Icon(Icons.Filled.Add, contentDescription = null) },
             text = { Text("新增設定") },

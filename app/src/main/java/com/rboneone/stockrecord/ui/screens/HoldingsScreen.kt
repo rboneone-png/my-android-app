@@ -12,13 +12,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material3.Card
+import com.rboneone.stockrecord.ui.theme.AppCard as Card
 import androidx.compose.material3.Surface
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -71,6 +72,7 @@ import com.rboneone.stockrecord.ui.formatPrice
 import com.rboneone.stockrecord.ui.formatShares
 import com.rboneone.stockrecord.ui.formatSignedWhole
 import com.rboneone.stockrecord.ui.roundHalfAway
+import com.rboneone.stockrecord.ui.theme.HeroCard
 import com.rboneone.stockrecord.ui.theme.LossGreen
 import com.rboneone.stockrecord.ui.theme.ProfitRed
 import com.rboneone.stockrecord.ui.formatSignedAmount
@@ -223,7 +225,7 @@ private fun MarketList(
             ReorderableItem(reorderState, key = OPEN_KEY + p.holding.symbol) { dragging ->
                 Surface(
                     shadowElevation = if (dragging) 8.dp else 0.dp,
-                    color = if (dragging) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surface,
+                    color = if (dragging) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surfaceContainerLowest,
                 ) {
                     Column {
                         PositionRow(
@@ -272,7 +274,8 @@ private fun SummaryHeader(view: PortfolioView, s: MarketSummary, hidden: Boolean
     fun signed(v: Double) = if (hidden) HIDDEN else formatSignedAmount(m, v)
     fun color(v: Double) = if (hidden) Color.Unspecified else pnlColor(v)
 
-    Column(Modifier.padding(16.dp)) {
+    HeroCard(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
+      Column(Modifier.padding(16.dp)) {
         Text("累積損益", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Row(verticalAlignment = Alignment.Bottom) {
             Text(
@@ -321,6 +324,7 @@ private fun SummaryHeader(view: PortfolioView, s: MarketSummary, hidden: Boolean
                 modifier = Modifier.padding(top = 8.dp),
             )
         }
+      }
     }
 }
 
@@ -341,7 +345,7 @@ private fun SectionHeader(title: String, trailing: @Composable () -> Unit) {
             .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.width(4.dp).height(18.dp).background(MaterialTheme.colorScheme.primary))
+        Box(Modifier.width(4.dp).height(18.dp).background(MaterialTheme.colorScheme.primary, RoundedCornerShape(2.dp)))
         Text(
             title,
             style = MaterialTheme.typography.titleMedium,
@@ -360,7 +364,10 @@ private val W_PNL = 1.25f
 private fun TableHeader() {
     val style = MaterialTheme.typography.bodyMedium
     val color = MaterialTheme.colorScheme.onSurfaceVariant
-    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.Top) {
+    Row(
+        Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainerLowest).padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.Top,
+    ) {
         Text("股票", Modifier.weight(W_STOCK), style = style, color = color)
         Text("股價", Modifier.weight(W_PRICE), style = style, color = color, textAlign = TextAlign.End)
         Text("成本均/買均", Modifier.weight(W_COST), style = style, color = color, textAlign = TextAlign.End)
@@ -476,7 +483,10 @@ private fun PositionRow(p: Position, hidden: Boolean, dragModifier: Modifier = M
 @Composable
 private fun ClosedRow(p: Position, hidden: Boolean) {
     val h = p.holding
-    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(
+        Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainerLowest).padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
         Column(Modifier.weight(1f)) {
             Text(p.displayName, style = MaterialTheme.typography.titleMedium)
             Text(h.symbol, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
