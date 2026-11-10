@@ -166,7 +166,7 @@ private fun SummaryCard(a: AllocationView) {
             AllocationRow("E", "其他市值", a.other, a.pct(a.other), OtherColor)
             HorizontalDivider()
             Text(
-                "總資產 = A + B + C + D + E　　曝險 = A + 2 × B\nD 現金 = 帳務管理的當日可用餘額（持股總覽上方「帳務」）",
+                "總資產 = A + B + C + D + E　　曝險 = A + 2 × B\nD 現金 = 帳務管理的當日可用餘額（底部導覽列「帳務」）",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

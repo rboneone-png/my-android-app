@@ -80,12 +80,12 @@ private enum class Tab(val route: String, val label: String, val icon: ImageVect
     ALLOCATION("allocation", "配置", iconRes = R.drawable.ic_pie_chart),
     PLEDGE("pledge", "質押", iconRes = R.drawable.ic_pledge),
     MONTHLY("monthly", "月報酬", Icons.Filled.DateRange),
-    ALERTS("alerts", "通知", Icons.Filled.Notifications),
+    ACCOUNTING("accounting", "帳務", iconRes = R.drawable.ic_wallet),
     SETTINGS("settings", "設定", Icons.Filled.Settings),
 }
 
 private const val RECORDS_ROUTE = "records"
-private const val ACCOUNTING_ROUTE = "accounting"
+private const val ALERTS_ROUTE = "alerts"
 private const val PLEDGE_PICK_ROUTE = "pledge-pick"
 private fun tradeRoute(id: Long = 0) = "trade/$id"
 private fun dividendRoute(id: Long = 0) = "dividend/$id"
@@ -182,14 +182,12 @@ fun StockRecordApp(vm: AppViewModel) {
                     },
                     onOpenCharts = { nav.navigate("charts") },
                     onOpenRecords = { nav.navigate(RECORDS_ROUTE) },
-                    onOpenAccounting = { nav.navigate(ACCOUNTING_ROUTE) },
                 )
             }
-            // 帳務管理由持股總覽上方的按鈕進入
-            composable(ACCOUNTING_ROUTE) {
+            // 帳務管理在底部導覽列（原本通知的位置）
+            composable(Tab.ACCOUNTING.route) {
                 AccountingScreen(
                     vm,
-                    onBack = { nav.popBackStack() },
                     onAdd = { type -> nav.navigate("cash/0?type=${type.name}") },
                     onEdit = { nav.navigate("cash/$it") },
                     onAddLoan = { nav.navigate("loan/0") },
@@ -271,9 +269,10 @@ fun StockRecordApp(vm: AppViewModel) {
                 )
             }
             composable(Tab.WATCH.route) { WatchlistScreen(vm) }
-            composable(Tab.SETTINGS.route) { SettingsScreen(vm) }
-            composable(Tab.ALERTS.route) {
-                AlertsScreen(vm, onEdit = { nav.navigate("alert/$it") })
+            composable(Tab.SETTINGS.route) { SettingsScreen(vm, onOpenAlerts = { nav.navigate(ALERTS_ROUTE) }) }
+            // 股價通知：從設定頁的「股價通知」進入
+            composable(ALERTS_ROUTE) {
+                AlertsScreen(vm, onEdit = { nav.navigate("alert/$it") }, onBack = { nav.popBackStack() })
             }
             composable(
                 "alert/{id}",

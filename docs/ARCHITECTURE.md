@@ -1,4 +1,4 @@
-# 股票記帳 — 架構說明（2.7.0）
+# 股票記帳 — 架構說明（2.8.0）
 
 ## 總覽
 
@@ -10,7 +10,7 @@
 
 ```
 ┌──────────────────────── UI（Compose）────────────────────────┐
-│ LoginScreen      StockRecordApp（導覽列：持股／觀察／配置／質押／月報酬／通知／設定）│
+│ LoginScreen      StockRecordApp（導覽列：持股／觀察／配置／質押／月報酬／帳務／設定；股價通知從設定頁進入）│
 │ screens/*Screen.kt                                              │
 └───────────────────────────┬────────────────────────────────────┘
                             │ StateFlow
@@ -113,4 +113,5 @@ sh.calvin.reorderable（拖曳排序）。股價資料來自 Google 財經、證
 - `ui/theme/Theme.kt`：固定的亮／暗色配色（不用動態色彩）、圓角（Shapes）、字型樣式（標題加粗、數字 tnum 等寬）。
 - `AppCard`：全 App 共用的白底圓角輕陰影卡片；各畫面以 `import ...AppCard as Card` 取代 Material 的 `Card`。`HeroCard`：總覽摘要用的淡藍漸層卡片。
 - `ScreenTopBar`（`Common.kt`）：淡藍底頂欄；`StockRecordApp` 的狀態列區塊與頂欄同色（Scaffold 只處理左右與下方的系統邊距）。
+- 配色模式存在 `StockApp`（SharedPreferences `app_prefs`，整個 App 共用，預設淺色），`MainActivity` 依它套用 `StockRecordTheme(dark)` 並同步狀態列／導覽列圖示顏色。
 - 改外觀時請用 Robolectric + Roborazzi 截圖檢查（暫時加進 build.gradle.kts，檢查完移除，不留在儲存庫）。

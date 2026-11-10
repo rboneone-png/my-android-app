@@ -3,7 +3,10 @@ package com.rboneone.stockrecord
 import android.os.Bundle
 import android.os.SystemClock
 import androidx.activity.compose.setContent
+import android.graphics.Color
+import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.fragment.app.FragmentActivity
@@ -23,7 +26,14 @@ class MainActivity : FragmentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            StockRecordTheme {
+            val dark by app.darkTheme.collectAsStateWithLifecycle()
+            // 狀態列、導覽列圖示跟著配色模式：淺色用深色圖示、深色用淺色圖示
+            DisposableEffect(dark) {
+                val style = if (dark) SystemBarStyle.dark(Color.TRANSPARENT) else SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT)
+                enableEdgeToEdge(statusBarStyle = style, navigationBarStyle = style)
+                onDispose { }
+            }
+            StockRecordTheme(dark = dark) {
                 val account by app.session.collectAsStateWithLifecycle()
                 val current = account
                 if (current == null) {

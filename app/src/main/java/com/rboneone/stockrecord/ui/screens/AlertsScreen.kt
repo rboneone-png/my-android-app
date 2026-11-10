@@ -19,6 +19,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material3.IconButton
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
 import com.rboneone.stockrecord.ui.theme.AppCard as Card
 import androidx.compose.material3.CardDefaults
@@ -50,7 +52,7 @@ import com.rboneone.stockrecord.ui.formatSignedPrice
 import com.rboneone.stockrecord.ui.theme.pnlColor
 
 @Composable
-fun AlertsScreen(vm: AppViewModel, onEdit: (Long) -> Unit) {
+fun AlertsScreen(vm: AppViewModel, onEdit: (Long) -> Unit, onBack: () -> Unit) {
     val alerts by vm.alerts.collectAsStateWithLifecycle()
     val quotes by vm.quotes.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -68,7 +70,12 @@ fun AlertsScreen(vm: AppViewModel, onEdit: (Long) -> Unit) {
 
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
-            ScreenTopBar("股價通知")
+            ScreenTopBar(
+                "股價通知",
+                navigationIcon = {
+                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回") }
+                },
+            )
             LazyColumn(
                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 96.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),

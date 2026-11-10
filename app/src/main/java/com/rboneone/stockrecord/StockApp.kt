@@ -21,6 +21,17 @@ class StockApp : Application() {
     val syncManager: SyncManager by lazy { SyncManager(this) }
     val alertChecker: AlertChecker by lazy { AlertChecker(this) }
 
+    private val appPrefs by lazy { getSharedPreferences("app_prefs", Context.MODE_PRIVATE) }
+    private val _darkTheme by lazy { MutableStateFlow(appPrefs.getBoolean(KEY_DARK_THEME, false)) }
+
+    /** 配色模式：true＝深色模式、false＝淺色模式（預設淺色）。整個 App 共用，登入頁也套用 */
+    val darkTheme: StateFlow<Boolean> get() = _darkTheme.asStateFlow()
+
+    fun setDarkTheme(dark: Boolean) {
+        appPrefs.edit().putBoolean(KEY_DARK_THEME, dark).apply()
+        _darkTheme.value = dark
+    }
+
     override fun onCreate() {
         super.onCreate()
         // 測試環境可能沒有初始化 WorkManager
@@ -99,6 +110,7 @@ class StockApp : Application() {
     }
 
     companion object {
+        private const val KEY_DARK_THEME = "dark_theme"
         private const val LEGACY_DB = "stock.db"
         fun databaseName(userId: String) = "stock_$userId.db"
     }

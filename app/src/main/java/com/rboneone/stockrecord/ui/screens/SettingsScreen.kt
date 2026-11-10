@@ -61,7 +61,7 @@ import kotlinx.coroutines.launch
 
 
 @Composable
-fun SettingsScreen(vm: AppViewModel) {
+fun SettingsScreen(vm: AppViewModel, onOpenAlerts: () -> Unit) {
     val context = LocalContext.current
     val message by vm.message.collectAsStateWithLifecycle()
     LaunchedEffect(message) {
@@ -79,6 +79,8 @@ fun SettingsScreen(vm: AppViewModel) {
         ) {
             AccountSection(vm)
             RefreshSection(vm)
+            ThemeSection(vm)
+            AlertsEntry(vm, onOpenAlerts)
             SyncSection(vm)
             ExportSection(vm)
             FeeSection(vm)
@@ -412,4 +414,38 @@ private fun IntervalEditor(days: Int, hours: Int, onApply: (Int, Int) -> Boolean
         }) { Text("套用") }
     }
     info?.let { Hint(it) }
+}
+
+/** 配色模式：淺色模式（預設）、深色模式，立即套用 */
+@Composable
+private fun ThemeSection(vm: AppViewModel) {
+    val dark by vm.darkTheme.collectAsStateWithLifecycle()
+    Section("配色模式") {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterChip(selected = !dark, onClick = { vm.setDarkTheme(false) }, label = { Text("淺色模式") })
+            FilterChip(selected = dark, onClick = { vm.setDarkTheme(true) }, label = { Text("深色模式") })
+        }
+        Hint("預設為淺色模式；選擇後馬上生效，登入頁也會套用。")
+    }
+}
+
+/** 股價通知：點一下進入通知清單與設定（原本在底部導覽列） */
+@Composable
+private fun AlertsEntry(vm: AppViewModel, onOpen: () -> Unit) {
+    val alerts by vm.alerts.collectAsStateWithLifecycle()
+    Card(Modifier.fillMaxWidth()) {
+        Row(
+            Modifier.fillMaxWidth().clickable(onClick = onOpen).padding(horizontal = 12.dp, vertical = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null)
+            Text("股價通知", Modifier.padding(start = 4.dp).weight(1f), style = MaterialTheme.typography.titleMedium)
+            Text(
+                "${alerts.size} 筆",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(end = 4.dp),
+            )
+        }
+    }
 }

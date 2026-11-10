@@ -55,7 +55,6 @@ private fun signedTwd(v: Long) = formatSignedAmount(Market.TW, v.toDouble())
 @Composable
 fun AccountingScreen(
     vm: AppViewModel,
-    onBack: () -> Unit,
     onAdd: (CashFlowType) -> Unit,
     onEdit: (Long) -> Unit,
     onAddLoan: () -> Unit,
@@ -80,12 +79,7 @@ fun AccountingScreen(
     LaunchedEffect(Unit) { vm.refreshQuotes(force = false) }
 
     Column(Modifier.fillMaxSize()) {
-        ScreenTopBar(
-            "帳務管理",
-            navigationIcon = {
-                IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回") }
-            },
-        )
+        ScreenTopBar("帳務管理")
         Column(
             Modifier.verticalScroll(rememberScrollState()).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),

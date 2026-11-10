@@ -82,6 +82,10 @@ data class AssetTrendState(
 class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val app = application as StockApp
     val account: StateFlow<Account?> = app.session
+
+    /** 配色模式（整個 App 共用）：true＝深色模式，預設淺色 */
+    val darkTheme: StateFlow<Boolean> = app.darkTheme
+    fun setDarkTheme(dark: Boolean) = app.setDarkTheme(dark)
     private val userId: String = requireNotNull(app.session.value) { "尚未登入" }.id
 
     private val db = app.database(userId)

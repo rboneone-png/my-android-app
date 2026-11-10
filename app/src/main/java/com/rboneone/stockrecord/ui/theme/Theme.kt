@@ -1,7 +1,6 @@
 package com.rboneone.stockrecord.ui.theme
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -105,9 +104,9 @@ private val AppTypography: Typography = Typography().let { t ->
 }
 
 @Composable
-fun StockRecordTheme(content: @Composable () -> Unit) {
+fun StockRecordTheme(dark: Boolean = false, content: @Composable () -> Unit) {
     MaterialTheme(
-        colorScheme = if (isSystemInDarkTheme()) DarkColors else LightColors,
+        colorScheme = if (dark) DarkColors else LightColors,
         shapes = AppShapes,
         typography = AppTypography,
         content = content,
