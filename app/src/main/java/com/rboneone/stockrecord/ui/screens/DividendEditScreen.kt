@@ -74,6 +74,9 @@ fun DividendEditScreen(vm: AppViewModel, dividendId: Long, onDone: () -> Unit) {
     var taxManual by rememberSaveable { mutableStateOf(!isNew) }
     var feeText by rememberSaveable { mutableStateOf("") }
     var stockText by rememberSaveable { mutableStateOf("") }
+    // 當天持有股數：預設依買賣紀錄自動帶入，使用者改過就用改的
+    var heldText by rememberSaveable { mutableStateOf("") }
+    var heldManual by rememberSaveable { mutableStateOf(false) }
     var note by rememberSaveable { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
     var showDatePicker by remember { mutableStateOf(false) }
@@ -97,11 +100,28 @@ fun DividendEditScreen(vm: AppViewModel, dividendId: Long, onDone: () -> Unit) {
 
     val sym = symbol.trim().uppercase()
     // 發放日當天持有股數（含當天買進與已入帳的配股，不含這筆自己的配股）
-    val heldShares = Portfolio.sharesOn(
+    val autoHeld = Portfolio.sharesOn(
         trades.filter { it.market == market && it.symbol == sym },
         dividends.filter { it.market == market && it.symbol == sym && it.id != dividendId },
         date,
     )
+    val heldShares = if (heldManual) heldText.toAmountOrNull() ?: 0.0 else autoHeld
+
+    // 舊紀錄的持股若與自動計算不同（使用者當時改過），由現金股利 ÷ 每股股利還原，並沿用原金額
+    var baseline by remember { mutableStateOf<Pair<String, Double>?>(null) }
+    var heldChecked by remember { mutableStateOf(false) }
+    LaunchedEffect(original, autoHeld, trades) {
+        val o = original ?: return@LaunchedEffect
+        val ps = o.perShare ?: return@LaunchedEffect
+        if (heldChecked || ps <= 0 || trades.isEmpty()) return@LaunchedEffect
+        heldChecked = true
+        if (DividendMath.cashTotal(ps, autoHeld) != o.cashAmount) {
+            val h = Math.round(o.cashAmount / ps * 10_000) / 10_000.0
+            heldManual = true
+            heldText = plainNumber(h)
+            baseline = plainNumber(ps) to h
+        }
+    }
 
     // 舊紀錄沒有每股股利：持股資料載入後，由現金股利總額反推出來給使用者看（記下反推時的數字與持股）
     var legacy by remember { mutableStateOf<Pair<String, Double>?>(null) }
@@ -118,8 +138,9 @@ fun DividendEditScreen(vm: AppViewModel, dividendId: Long, onDone: () -> Unit) {
     val perShare = perShareText.toAmountOrNull()
     // 沒改動反推出來的每股股利與持股，就沿用原本的現金股利，避免四捨五入的小誤差改掉舊金額
     val keepLegacyCash = original != null && legacy != null && perShareText == legacy!!.first && heldShares == legacy!!.second
+    val keepBaseline = original != null && baseline != null && perShareText == baseline!!.first && heldShares == baseline!!.second
     // 現金股利總額 = 每股股利 × 當天持有股數
-    val cash: Double? = if (keepLegacyCash) original!!.cashAmount else perShare?.let { DividendMath.cashTotal(it, heldShares) }
+    val cash: Double? = if (keepLegacyCash || keepBaseline) original!!.cashAmount else perShare?.let { DividendMath.cashTotal(it, heldShares) }
     val autoTax = FeeCalculator.dividendTax(market, cash ?: 0.0, settings)
     LaunchedEffect(autoTax, taxManual) {
         if (!taxManual) taxText = plainNumber(autoTax)
@@ -222,11 +243,18 @@ fun DividendEditScreen(vm: AppViewModel, dividendId: Long, onDone: () -> Unit) {
                 supporting = "沒有現金股利請留空",
                 modifier = Modifier.fillMaxWidth(),
             )
-            // 當天持有股股數：自動帶入
-            AutoField(
-                "當天持有股股數", if (sym.isEmpty()) "--" else formatShares(heldShares),
-                supporting = if (sym.isNotEmpty() && heldShares <= 0) "發放日當天沒有持有這檔股票" else "依買賣紀錄自動計算",
-                isError = sym.isNotEmpty() && heldShares <= 0 && (perShare ?: 0.0) > 0,
+            // 當天持有股股數：自動帶入，可自行修改
+            NumberField(
+                if (heldManual) heldText else if (sym.isEmpty()) "" else plainNumber(autoHeld),
+                { heldText = it; heldManual = true; error = null },
+                "當天持有股股數",
+                supporting = when {
+                    heldManual -> "已手動修改（自動計算為 ${formatShares(autoHeld)}）"
+                    sym.isNotEmpty() && autoHeld <= 0 -> "發放日當天沒有持有這檔股票，可自行輸入"
+                    else -> "依買賣紀錄自動計算，可自行修改"
+                },
+                onResetAuto = if (heldManual) ({ heldManual = false; heldText = ""; baseline = null }) else null,
+                modifier = Modifier.fillMaxWidth(),
             )
             // 現金股利總額 = 每股股利 × 當天持有股股數
             AutoField(
