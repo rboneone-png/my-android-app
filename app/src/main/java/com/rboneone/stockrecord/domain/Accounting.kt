@@ -16,6 +16,7 @@ import com.rboneone.stockrecord.data.TradeType
  * - B 當日賣出金額、C 當日買進金額：台股 + 美股（以匯率換成台幣）
  * - D 當日帳務 = B − C；當日質借金額：今天新增的質借金額
  * - 當日貸款金額：今天是貸款繳款日時，自動扣款的每月繳款總和
+ * - 當日質借歸還：今天歸還的質借金額（本金），以及歸還利息（質借金額 × 年利率 × 質押天數 ÷ 365）
  * - 當日股利：今天入帳的現金股利（扣除代扣稅與匯費後的實際入帳金額）
  *
  * 累計（歷來到今天，隔天不會消失）：
@@ -23,9 +24,10 @@ import com.rboneone.stockrecord.data.TradeType
  * - 質借金額累計 = 歷來質借金額的總和
  * - 股利累計 = 歷來入帳的現金股利總和
  * - 貸款累計 = 建立貸款之後，歷來每個繳款日自動扣款的金額總和
+ * - 質借歸還累計 = 歷來歸還的質借金額 + 歸還利息
  * - 存入現金、領出現金：截至今天的累計
  *
- * A 當日可用餘額 = 存入現金 − 領出現金 + 帳務累計 + 質借金額累計 + 股利累計 − 貸款累計
+ * A 當日可用餘額 = 存入現金 − 領出現金 + 帳務累計 + 質借金額累計 + 股利累計 − 貸款累計 − 質借歸還累計（本金＋利息）
  */
 data class DayAccount(
     /** 截至當天累計存入的現金 */
@@ -54,12 +56,22 @@ data class DayAccount(
     val loanToday: Long = 0,
     /** 歷來（到今天）貸款自動扣款的總和 */
     val loanTotal: Long = 0,
+    /** 當日歸還的質借金額（本金） */
+    val pledgeReturnToday: Long = 0,
+    /** 當日歸還質借的利息 */
+    val pledgeInterestToday: Long = 0,
+    /** 歷來（到今天）歸還的質借金額（本金） */
+    val pledgeReturnTotal: Long = 0,
+    /** 歷來（到今天）歸還質借的利息 */
+    val pledgeInterestTotal: Long = 0,
 ) {
     /** D：當日帳務 = B − C */
     val dayNet: Long get() = sells - buys
 
     /** A：當日可用餘額 = 存入現金 − 領出現金 + 帳務累計 + 質借金額累計 + 股利累計 − 貸款累計 */
-    val available: Long get() = deposits - withdrawals + accountTotal + pledgedTotal + dividendsTotal - loanTotal
+    val available: Long
+        get() = deposits - withdrawals + accountTotal + pledgedTotal + dividendsTotal - loanTotal -
+            pledgeReturnTotal - pledgeInterestTotal
 }
 
 object Accounting {
@@ -95,6 +107,7 @@ object Accounting {
         val dividendsUpToToday = dividends.filter { it.date <= date }.associateWith { twd(it) }
 
         // 每筆各自換算、四捨五入；今天與歷來用同一份換算結果，加總才會對得上
+        val returned = pledges.filter { !it.isActive }
         val converted = upToToday.associateWith { twd(it) }
         fun sum(list: List<Trade>, type: TradeType) = list.filter { it.type == type }.sumOf { converted.getValue(it) }
         val sells = sum(today, TradeType.SELL)
@@ -113,6 +126,10 @@ object Accounting {
             usMissingRate = usMissing,
             loanToday = loans.sumOf { LoanMath.dueOn(it, date) },
             loanTotal = loans.sumOf { LoanMath.deductedUpTo(it, date) },
+            pledgeReturnToday = returned.filter { it.returnDate == date }.sumOf { round(it.amount) },
+            pledgeInterestToday = returned.filter { it.returnDate == date }.sumOf { it.returnInterest ?: 0L },
+            pledgeReturnTotal = returned.filter { (it.returnDate ?: Long.MAX_VALUE) <= date }.sumOf { round(it.amount) },
+            pledgeInterestTotal = returned.filter { (it.returnDate ?: Long.MAX_VALUE) <= date }.sumOf { it.returnInterest ?: 0L },
         )
     }
 }

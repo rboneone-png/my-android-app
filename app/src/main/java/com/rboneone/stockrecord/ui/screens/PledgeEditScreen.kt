@@ -292,7 +292,7 @@ fun PledgeEditScreen(
 }
 
 @Composable
-private fun ReadOnlyField(
+internal fun ReadOnlyField(
     label: String,
     value: String,
     supporting: String? = null,

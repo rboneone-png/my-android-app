@@ -1,8 +1,8 @@
 {
   "formatVersion": 1,
   "database": {
-    "version": 11,
-    "identityHash": "4893a77822d9b16a743a704a97a2a8e8",
+    "version": 12,
+    "identityHash": "f5c3cebe66313bb5cbd60e1287257c38",
     "entities": [
       {
         "tableName": "trades",
@@ -363,7 +363,7 @@
       },
       {
         "tableName": "pledges",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `symbol` TEXT NOT NULL, `name` TEXT NOT NULL, `shares` REAL NOT NULL, `amount` REAL NOT NULL, `ratePct` REAL NOT NULL, `date` INTEGER NOT NULL, `note` TEXT NOT NULL)",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `symbol` TEXT NOT NULL, `name` TEXT NOT NULL, `shares` REAL NOT NULL, `amount` REAL NOT NULL, `ratePct` REAL NOT NULL, `date` INTEGER NOT NULL, `note` TEXT NOT NULL, `returnDate` INTEGER)",
         "fields": [
           {
             "fieldPath": "id",
@@ -412,6 +412,12 @@
             "columnName": "note",
             "affinity": "TEXT",
             "notNull": true
+          },
+          {
+            "fieldPath": "returnDate",
+            "columnName": "returnDate",
+            "affinity": "INTEGER",
+            "notNull": false
           }
         ],
         "primaryKey": {
@@ -651,7 +657,7 @@
     "views": [],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '4893a77822d9b16a743a704a97a2a8e8')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'f5c3cebe66313bb5cbd60e1287257c38')"
     ]
   }
 }

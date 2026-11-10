@@ -100,6 +100,7 @@ object Backup {
                 JSONObject()
                     .put("id", it.id).put("symbol", it.symbol).put("name", it.name).put("shares", it.shares)
                     .put("amount", it.amount).put("ratePct", it.ratePct).put("date", it.date).put("note", it.note)
+                    .also { o -> it.returnDate?.let { r -> o.put("returnDate", r) } }
             )
         }
         val order = JSONObject()
@@ -254,6 +255,7 @@ object Backup {
                     ratePct = o.getDouble("ratePct"),
                     date = o.getLong("date"),
                     note = o.optString("note"),
+                    returnDate = if (o.has("returnDate") && !o.isNull("returnDate")) o.getLong("returnDate") else null,
                 )
             }
         } ?: emptyList()

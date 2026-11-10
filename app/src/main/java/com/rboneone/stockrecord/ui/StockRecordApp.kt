@@ -40,6 +40,7 @@ import com.rboneone.stockrecord.ui.screens.CashFlowEditScreen
 import com.rboneone.stockrecord.ui.screens.LoanEditScreen
 import com.rboneone.stockrecord.ui.screens.PledgeEditScreen
 import com.rboneone.stockrecord.ui.screens.PledgePickScreen
+import com.rboneone.stockrecord.ui.screens.PledgeReturnScreen
 import com.rboneone.stockrecord.ui.screens.PledgeScreen
 import com.rboneone.stockrecord.ui.theme.pledgeColor
 import androidx.compose.material3.NavigationBarItemDefaults
@@ -191,7 +192,12 @@ fun StockRecordApp(vm: AppViewModel) {
             composable("charts") { ChartsScreen(vm, onBack = { nav.popBackStack() }) }
             composable(Tab.ALLOCATION.route) { AllocationScreen(vm) }
             composable(Tab.PLEDGE.route) {
-                PledgeScreen(vm, onEdit = { nav.navigate("pledge/$it") }, onAdd = { nav.navigate(PLEDGE_PICK_ROUTE) })
+                PledgeScreen(
+                    vm,
+                    onEdit = { nav.navigate("pledge/$it") },
+                    onAdd = { nav.navigate(PLEDGE_PICK_ROUTE) },
+                    onReturn = { nav.navigate("pledge-return/$it") },
+                )
             }
             // 新增質押：先選股票，再進質押設定
             composable(PLEDGE_PICK_ROUTE) {
@@ -215,6 +221,15 @@ fun StockRecordApp(vm: AppViewModel) {
                     onBack = { nav.popBackStack() },
                     // 完成後回到質押頁（新增時中間還有選擇清單）
                     onDone = { if (!nav.popBackStack(Tab.PLEDGE.route, inclusive = false)) nav.popBackStack() },
+                )
+            }
+            // 質借歸還設定（從質押頁的「質借歸還」選擇清單進入；已歸還的可再編輯）
+            composable("pledge-return/{id}", arguments = listOf(navArgument("id") { type = NavType.LongType })) { entry ->
+                PledgeReturnScreen(
+                    vm = vm,
+                    pledgeId = entry.arguments?.getLong("id") ?: 0,
+                    onBack = { nav.popBackStack() },
+                    onDone = { nav.popBackStack(Tab.PLEDGE.route, inclusive = false) },
                 )
             }
             composable(Tab.MONTHLY.route) { MonthlyReturnScreen(vm) }

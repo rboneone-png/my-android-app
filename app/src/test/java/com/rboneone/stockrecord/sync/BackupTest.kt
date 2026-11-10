@@ -113,4 +113,14 @@ class BackupTest {
         assertEquals(o, data.clecOverrides)
         assertEquals(com.rboneone.stockrecord.domain.Clec.Overrides(), Backup.parse("""{"version":1,"exportedAt":1,"trades":[],"dividends":[]}""").clecOverrides)
     }
+
+    @Test
+    fun pledgeReturnDateRoundTrip_andOldPledgeIsActive() {
+        val returned = com.rboneone.stockrecord.data.Pledge(1, "2330", "台積電", 1000.0, 100_000.0, 2.0, 10, "", 40)
+        val active = com.rboneone.stockrecord.data.Pledge(2, "2330", "台積電", 1000.0, 100_000.0, 2.0, 20)
+        val data = Backup.parse(Backup.serialize(BackupData(1, emptyList(), emptyList(), FeeSettings(), pledges = listOf(returned, active))))
+        assertEquals(listOf(40L, null), data.pledges.map { it.returnDate })
+        val old = Backup.parse("""{"version":1,"exportedAt":1,"trades":[],"dividends":[],"pledges":[{"id":3,"symbol":"2330","name":"x","shares":1000,"amount":1000,"ratePct":2,"date":5}]}""")
+        assertEquals(null, old.pledges.single().returnDate)
+    }
 }

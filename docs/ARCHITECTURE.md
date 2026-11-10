@@ -1,4 +1,4 @@
-# 股票記帳 — 架構說明（2.5.1）
+# 股票記帳 — 架構說明（2.6.0）
 
 ## 總覽
 
@@ -45,7 +45,7 @@ app/src/main/java/com/rboneone/stockrecord/
 
 ## 資料儲存
 
-每個帳號一個獨立的 SQLite 資料庫 `stock_<帳號ID>.db`（Room，版本 11）與一份設定檔 `settings_<帳號ID>`。
+每個帳號一個獨立的 SQLite 資料庫 `stock_<帳號ID>.db`（Room，版本 12）與一份設定檔 `settings_<帳號ID>`。
 
 | 資料表 | 內容 |
 |---|---|
@@ -63,7 +63,7 @@ app/src/main/java/com/rboneone/stockrecord/
 設定檔（SharedPreferences）：手續費設定、股價刷新秒數、現金金額、庫存股排序、質押「包含正二」、同步設定、上次質押通知日。
 帳號清單另存於 `accounts`（只存加鹽雜湊後的密碼）。
 
-舊版資料庫升級（v1→v11）的 Migration 保留在 `AppDatabase.kt`，讓任何舊版本都能直接覆蓋安裝；
+舊版資料庫升級（v1→v12）的 Migration 保留在 `AppDatabase.kt`，讓任何舊版本都能直接覆蓋安裝；
 `app/schemas/.../10.json` 是 Room 匯出的最終資料表結構。
 
 ## 主要計算（domain/）

@@ -120,7 +120,8 @@ fun AccountingScreen(
                     Text(
                         "= 存入現金 ${twd(account.deposits)} − 領出現金 ${twd(account.withdrawals)}" +
                             " + 帳務累計 ${signedTwd(account.accountTotal)} + 質借金額累計 ${twd(account.pledgedTotal)}" +
-                            " + 股利累計 ${twd(account.dividendsTotal)} − 貸款累計 ${twd(account.loanTotal)}",
+                            " + 股利累計 ${twd(account.dividendsTotal)} − 貸款累計 ${twd(account.loanTotal)}" +
+                            " − 質借歸還累計 ${twd(account.pledgeReturnTotal + account.pledgeInterestTotal)}",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -131,12 +132,15 @@ fun AccountingScreen(
                     Item("當日質借金額", twd(account.pledged))
                     Item("當日股利（實際入帳）", twd(account.dividendsToday))
                     Item("當日貸款金額（繳款日自動扣款）", twd(account.loanToday))
+                    Item("當日質借歸還金額", twd(account.pledgeReturnToday))
+                    Item("當日質借歸還利息", twd(account.pledgeInterestToday))
                     HorizontalDivider()
                     // 前幾天的買賣與質押會留在餘額裡，這裡列出累計
                     Item("帳務累計（歷來賣出 − 買進，含今日）", signedTwd(account.accountTotal))
                     Item("質借金額累計（含今日）", twd(account.pledgedTotal))
                     Item("股利累計（含今日）", twd(account.dividendsTotal))
                     Item("貸款累計（含今日，已扣款）", twd(account.loanTotal))
+                    Item("質借歸還累計（本金＋利息，含今日）", twd(account.pledgeReturnTotal + account.pledgeInterestTotal))
                     when {
                         account.usMissingRate -> Text(
                             "尚未取得美元匯率，美股買賣未計入，請到持股總覽更新股價。",
@@ -259,7 +263,7 @@ fun AccountingScreen(
                 }
             }
             Text(
-                "當日可用餘額 = 存入現金 − 領出現金 + 帳務累計 + 質借金額累計 + 股利累計 − 貸款累計。這些都是歷來累計，" +
+                "當日可用餘額 = 存入現金 − 領出現金 + 帳務累計 + 質借金額累計 + 股利累計 − 貸款累計 − 質借歸還累計（本金＋利息）。這些都是歷來累計，" +
                     "前幾天的買賣、質押與股利會留在餘額裡；當日帳務（賣出 − 買進）是其中今天的部分。\n" +
                     "股利為實際入帳的現金股利（已扣除代扣稅與匯費），股票股利不計。\n" +
                     "貸款在每月繳款日自動扣款（當日貸款金額），建立貸款日之後的繳款日才會扣。\n" +

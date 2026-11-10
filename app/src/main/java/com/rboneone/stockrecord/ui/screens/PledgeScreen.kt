@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -19,7 +20,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExtendedFloatingActionButton
@@ -28,6 +31,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -39,14 +43,17 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import java.time.LocalDate
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.rboneone.stockrecord.data.Market
+import com.rboneone.stockrecord.data.Pledge
 import com.rboneone.stockrecord.domain.PledgeCalculator
 import com.rboneone.stockrecord.domain.PledgeItem
 import com.rboneone.stockrecord.domain.PledgeMonth
 import com.rboneone.stockrecord.domain.PledgeView
 import com.rboneone.stockrecord.ui.AppViewModel
 import com.rboneone.stockrecord.ui.formatAmount
+import com.rboneone.stockrecord.ui.formatDate
 import com.rboneone.stockrecord.ui.formatShares
 import com.rboneone.stockrecord.ui.theme.PledgeDanger
 import com.rboneone.stockrecord.ui.theme.PledgeSafe
@@ -57,11 +64,14 @@ private fun twd(v: Double) = formatAmount(Market.TW, v)
 private fun ratioText(r: Double?) = r?.let { "%.1f%%".format(it) } ?: "--"
 
 @Composable
-fun PledgeScreen(vm: AppViewModel, onEdit: (Long) -> Unit, onAdd: () -> Unit) {
+fun PledgeScreen(vm: AppViewModel, onEdit: (Long) -> Unit, onAdd: () -> Unit, onReturn: (Long) -> Unit) {
     val view by vm.pledgeView.collectAsStateWithLifecycle()
     val includeLeveraged by vm.pledgeIncludeLeveraged.collectAsStateWithLifecycle()
     // 已展開的月份（yyyy-MM），預設全部收合
     var opened by rememberSaveable { mutableStateOf(setOf<String>()) }
+    // 已歸還的清單，預設收合；質借歸還的選擇清單（跳出視窗）
+    var returnedOpen by rememberSaveable { mutableStateOf(false) }
+    var picking by rememberSaveable { mutableStateOf(false) }
 
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
@@ -107,9 +117,42 @@ fun PledgeScreen(vm: AppViewModel, onEdit: (Long) -> Unit, onAdd: () -> Unit) {
                         }
                     }
                 }
+                // 已歸還：不計入質借總金額與維持率；點一筆可修改歸還日或取消歸還
+                if (v.returned.isNotEmpty()) {
+                    item(key = "returned-header") {
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .background(MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f))
+                                .clickable(onClickLabel = if (returnedOpen) "收合" else "展開") { returnedOpen = !returnedOpen }
+                                .padding(horizontal = 12.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(
+                                if (returnedOpen) Icons.Filled.KeyboardArrowDown else Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                                contentDescription = null,
+                            )
+                            Column(Modifier.weight(1f).padding(start = 4.dp)) {
+                                Text("已歸還（${v.returned.size}）", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                                Text(
+                                    "已付利息 ${twd(v.returnedInterest.toDouble())}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+                    }
+                    if (returnedOpen) {
+                        items(v.returned, key = { "ret-${it.id}" }) { p ->
+                            ReturnedRow(p, onClick = { onReturn(p.id) })
+                            HorizontalDivider()
+                        }
+                    }
+                }
                 item(key = "note") {
                     Text(
                         "利息支出 = 質押利率 × 質借金額（年）\n" +
+                            "歸還利息 = 質借金額 × 年利率 × 質押天數 ÷ 365（質押日到歸還日）\n" +
                             "維持率 = 質押股數 × 股價 ÷ 質借金額 × 100%\n" +
                             "質押維持率 = 質押總市值 ÷ 質借總金額 × 100%，低於 175% 時會發出通知",
                         style = MaterialTheme.typography.bodySmall,
@@ -119,12 +162,81 @@ fun PledgeScreen(vm: AppViewModel, onEdit: (Long) -> Unit, onAdd: () -> Unit) {
                 }
             }
         }
-        ExtendedFloatingActionButton(
-            onClick = onAdd,
-            icon = { Icon(Icons.Filled.Add, contentDescription = null) },
-            text = { Text("新增質押") },
-            modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp),
+        Column(Modifier.align(Alignment.BottomEnd).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp), horizontalAlignment = Alignment.End) {
+            if (view?.items?.isNotEmpty() == true) {
+                ExtendedFloatingActionButton(
+                    onClick = { picking = true },
+                    icon = { Icon(Icons.Filled.Check, contentDescription = null) },
+                    text = { Text("質借歸還") },
+                )
+            }
+            ExtendedFloatingActionButton(
+                onClick = onAdd,
+                icon = { Icon(Icons.Filled.Add, contentDescription = null) },
+                text = { Text("新增質押") },
+            )
+        }
+    }
+
+    // 質借歸還：先跳出質押清單，選一筆再進歸還設定
+    val v = view
+    if (picking && v != null) {
+        val today = LocalDate.now().toEpochDay()
+        AlertDialog(
+            onDismissRequest = { picking = false },
+            title = { Text("選擇要歸還的質押") },
+            text = {
+                LazyColumn(Modifier.heightIn(max = 420.dp)) {
+                    items(v.items.sortedWith(compareByDescending<PledgeItem> { it.pledge.date }.thenByDescending { it.pledge.id }), key = { it.pledge.id }) { item ->
+                        val p = item.pledge
+                        Column(
+                            Modifier.fillMaxWidth().clickable { picking = false; onReturn(p.id) }.padding(vertical = 10.dp),
+                        ) {
+                            Text("${p.name.ifBlank { p.symbol }}（${p.symbol}）", style = MaterialTheme.typography.titleSmall)
+                            Text(
+                                "${formatDate(p.date)}・${formatShares(p.shares)} 股・質借 ${twd(p.amount)}・利率 %.2f%%".format(p.ratePct),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            Text(
+                                "質押至今 ${p.daysTo(today)} 天，利息約 ${twd(p.interestForDays(p.daysTo(today)).toDouble())}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        HorizontalDivider()
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = { TextButton(onClick = { picking = false }) { Text("取消") } },
         )
+    }
+}
+
+/** 已歸還的一筆：股票、質押日到歸還日（天數）、質借金額與歸還利息 */
+@Composable
+private fun ReturnedRow(p: Pledge, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text("${p.name.ifBlank { p.symbol }}（${p.symbol}）", style = MaterialTheme.typography.titleSmall)
+            Text(
+                "${formatDate(p.date)} → ${formatDate(p.returnDate ?: p.date)}（${p.returnDays ?: 0} 天）・${formatShares(p.shares)} 股",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Column(horizontalAlignment = Alignment.End) {
+            Text(twd(p.amount), style = MaterialTheme.typography.titleSmall)
+            Text(
+                "利息 ${twd((p.returnInterest ?: 0L).toDouble())}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
 

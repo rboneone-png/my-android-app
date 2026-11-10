@@ -36,8 +36,14 @@ data class PledgeMonth(val month: YearMonth, val items: List<PledgeItem>) {
 data class PledgeView(
     /** 可質押股票總市值：目前所有台股持股的市值 */
     val pledgeableValue: Double,
+    /** 質押中的紀錄（已歸還的不在這裡，也不計入總額、維持率、可質押股數） */
     val items: List<PledgeItem>,
+    /** 已歸還的紀錄，歸還日新的在前 */
+    val returned: List<Pledge> = emptyList(),
 ) {
+    /** 已歸還的利息總和（元） */
+    val returnedInterest: Long get() = returned.sumOf { it.returnInterest ?: 0L }
+
     /** 依質押日期的月份分組，新的月份在前；同月份內日期新的在前 */
     val months: List<PledgeMonth>
         get() = items
@@ -106,7 +112,7 @@ object PledgeCalculator {
             .filter { it.holding.market == Market.TW && it.holding.isOpen }
             .mapNotNull { pos ->
                 val symbol = pos.holding.symbol
-                val pledged = pledges.filter { it.symbol == symbol }.sumOf { it.shares }
+                val pledged = pledges.filter { it.isActive && it.symbol == symbol }.sumOf { it.shares }
                 val shares = pledgeableShares(pos.holding.shares, pledged)
                 if (shares < LOT) return@mapNotNull null
                 PledgeCandidate(
@@ -180,6 +186,7 @@ object PledgeCalculator {
                 ?.filter { it.holding.market == Market.TW && it.holding.isOpen }
                 ?.filter { includeLeveraged || categories[Market.TW to it.holding.symbol] != AssetCategory.LEVERAGED_2X }
                 ?.sumOf { it.marketValue ?: it.holding.totalCost } ?: 0.0,
-            items = pledges.map { PledgeItem(it, quotes[Market.TW to it.symbol]?.price) },
+            items = pledges.filter { it.isActive }.map { PledgeItem(it, quotes[Market.TW to it.symbol]?.price) },
+            returned = pledges.filter { !it.isActive }.sortedWith(compareByDescending<Pledge> { it.returnDate }.thenByDescending { it.id }),
         )
 }
