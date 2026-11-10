@@ -7,6 +7,7 @@ enum class AssetCategory(val label: String, val exposure: Double) {
     CORE("原型", 1.0),
     LEVERAGED_2X("正二", 2.0),
     CASH_LIKE("類現金", 0.0),
+    STOCK("個股", 0.0),
     OTHER("其他", 0.0),
 }
 

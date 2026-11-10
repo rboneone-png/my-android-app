@@ -6,7 +6,7 @@ import org.junit.Test
 
 class ClecTest {
     private fun view(core: Double, leveraged: Double, cashLike: Double, cash: Double, other: Double = 0.0) =
-        AllocationView(core, leveraged, cashLike, cash, other, emptyList(), false)
+        AllocationView(core, leveraged, cashLike, cash, 0.0, other, emptyList(), false)
 
     @Test
     fun betaIsFirstDigitPlusTwiceSecondDigit() {

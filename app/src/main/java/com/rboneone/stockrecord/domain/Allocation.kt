@@ -13,7 +13,7 @@ data class AllocationItem(
 
 /**
  * 資產配置（皆為台幣）：
- * 總資產 = 原型 + 正二 + 類現金 + 現金 + 其他
+ * 總資產 = 原型 + 正二 + 類現金 + 現金 + 個股 + 其他
  * 曝險 = 原型 + 2 × 正二
  */
 data class AllocationView(
@@ -21,12 +21,13 @@ data class AllocationView(
     val leveraged: Double,
     val cashLike: Double,
     val cash: Double,
+    val stock: Double,
     val other: Double,
     val items: List<AllocationItem>,
     /** 有美股持股但尚未取得匯率 */
     val missingFx: Boolean,
 ) {
-    val total: Double get() = core + leveraged + cashLike + cash + other
+    val total: Double get() = core + leveraged + cashLike + cash + stock + other
     val exposure: Double get() = core + 2 * leveraged
 
     fun pct(value: Double): Double? = if (total > 0) value / total * 100 else null
@@ -61,6 +62,7 @@ object Allocation {
             leveraged = sum(AssetCategory.LEVERAGED_2X),
             cashLike = sum(AssetCategory.CASH_LIKE),
             cash = cash,
+            stock = sum(AssetCategory.STOCK),
             other = sum(AssetCategory.OTHER),
             items = items,
             missingFx = items.any { it.valueTwd == null },

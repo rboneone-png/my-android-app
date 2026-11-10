@@ -2,6 +2,8 @@ package com.rboneone.stockrecord.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -54,12 +56,14 @@ private val CoreColor = Color(0xFF1E88E5)
 private val LeveragedColor = Color(0xFFFB8C00)
 private val CashLikeColor = Color(0xFF26A69A)
 private val CashColor = Color(0xFF9E9E9E)
+private val StockColor = Color(0xFFE53935)
 private val OtherColor = Color(0xFF8E24AA)
 
 private fun AssetCategory.color() = when (this) {
     AssetCategory.CORE -> CoreColor
     AssetCategory.LEVERAGED_2X -> LeveragedColor
     AssetCategory.CASH_LIKE -> CashLikeColor
+    AssetCategory.STOCK -> StockColor
     AssetCategory.OTHER -> OtherColor
 }
 
@@ -163,10 +167,11 @@ private fun SummaryCard(a: AllocationView) {
             AllocationRow("B", "正二市值", a.leveraged, a.pct(a.leveraged), LeveragedColor)
             AllocationRow("C", "類現金市值", a.cashLike, a.pct(a.cashLike), CashLikeColor)
             AllocationRow("D", "現金", a.cash, a.pct(a.cash), CashColor)
-            AllocationRow("E", "其他市值", a.other, a.pct(a.other), OtherColor)
+            AllocationRow("E", "個股市值", a.stock, a.pct(a.stock), StockColor)
+            AllocationRow("F", "其他市值", a.other, a.pct(a.other), OtherColor)
             HorizontalDivider()
             Text(
-                "總資產 = A + B + C + D + E　　曝險 = A + 2 × B\nD 現金 = 帳務管理的當日可用餘額（底部導覽列「帳務」）",
+                "總資產 = A + B + C + D + E + F　　曝險 = A + 2 × B\nD 現金 = 帳務管理的當日可用餘額（底部導覽列「帳務」）",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -192,7 +197,7 @@ private fun SummaryCard(a: AllocationView) {
 private fun AllocationBar(a: AllocationView) {
     val parts = listOf(
         a.core to CoreColor, a.leveraged to LeveragedColor, a.cashLike to CashLikeColor,
-        a.cash to CashColor, a.other to OtherColor,
+        a.cash to CashColor, a.stock to StockColor, a.other to OtherColor,
     )
         .filter { it.first > 0 }
     if (parts.isEmpty()) return
@@ -292,10 +297,13 @@ private fun ItemCard(item: AllocationItem, highlight: Boolean, onSelect: (AssetC
     }
 }
 
-/** 原型／正二／類現金單選；再按一次已選的項目可取消 */
+/** 原型／正二／類現金／個股／其他單選；再按一次已選的項目可取消 */
 @Composable
 fun CategoryChips(selected: AssetCategory?, onSelect: (AssetCategory?) -> Unit) {
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    Row(
+        Modifier.horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
         AssetCategory.entries.forEach { c ->
             FilterChip(
                 selected = selected == c,
