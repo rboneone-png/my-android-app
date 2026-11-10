@@ -11,6 +11,7 @@ import com.rboneone.stockrecord.data.LoanType
 import com.rboneone.stockrecord.data.Market
 import com.rboneone.stockrecord.data.Pledge
 import com.rboneone.stockrecord.data.PriceAlert
+import com.rboneone.stockrecord.data.StockSplit
 import com.rboneone.stockrecord.data.StockCategory
 import com.rboneone.stockrecord.data.TaxType
 import com.rboneone.stockrecord.data.Trade
@@ -49,6 +50,8 @@ data class BackupData(
     val clecMethod: String = "433",
     /** CLEC 的 F、G、H 手動數值（null 表示自動） */
     val clecOverrides: com.rboneone.stockrecord.domain.Clec.Overrides = com.rboneone.stockrecord.domain.Clec.Overrides(),
+    /** 股票分割（舊版備份沒有） */
+    val splits: List<StockSplit> = emptyList(),
 )
 
 /** 備份檔格式（JSON），只含密碼的加鹽雜湊值，不含明碼 */
@@ -135,8 +138,17 @@ object Backup {
                     .put("startDate", it.startDate).put("note", it.note)
             )
         }
+        val splits = JSONArray()
+        data.splits.forEach {
+            splits.put(
+                JSONObject().put("id", it.id).put("market", it.market.name).put("symbol", it.symbol).put("name", it.name)
+                    .put("suspendDate", it.suspendDate).put("resumeDate", it.resumeDate).put("ratio", it.ratio)
+                    .put("applied", it.applied)
+            )
+        }
         return JSONObject()
             .put("version", VERSION)
+            .put("splits", splits)
             .put("loans", loans)
             .put("clecLivingCost", data.clecLivingCost)
             .put("clecMethod", data.clecMethod)
@@ -325,6 +337,23 @@ object Backup {
                 }.getOrNull()
             }
         } ?: emptyList()
+        val splits = root.optJSONArray("splits")?.let { a ->
+            (0 until a.length()).mapNotNull { i ->
+                val o = a.getJSONObject(i)
+                runCatching {
+                    StockSplit(
+                        id = o.getLong("id"),
+                        market = Market.valueOf(o.getString("market")),
+                        symbol = o.getString("symbol"),
+                        name = o.getString("name"),
+                        suspendDate = o.getLong("suspendDate"),
+                        resumeDate = o.getLong("resumeDate"),
+                        ratio = o.getInt("ratio"),
+                        applied = o.optBoolean("applied", false),
+                    )
+                }.getOrNull()
+            }
+        } ?: emptyList()
         return BackupData(
             root.optLong("exportedAt"), trades, dividends, fees, categories, root.optDouble("cash", 0.0), alerts, pledges,
             holdingOrder, watchlist, highWatch, cashFlows,
@@ -339,6 +368,7 @@ object Backup {
                 if (root.has("clecG")) root.optDouble("clecG") else null,
                 if (root.has("clecH")) root.optDouble("clecH") else null,
             ),
+            splits,
         )
     }
 }

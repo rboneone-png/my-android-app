@@ -16,6 +16,8 @@ class AlertChecker(private val app: StockApp) {
     /** refresh = true 時先抓最新報價（背景檢查用）；App 內已經刷新過時傳 false */
     suspend fun check(userId: String, refresh: Boolean): Int {
         val db = app.database(userId)
+        // 先做到期的股票分割調整，通知與質押維持率才用得到分割後的股數與價格
+        com.rboneone.stockrecord.data.SplitApplier.applyDue(db, LocalDate.now().toEpochDay())
         val alerts = db.alertDao().getEnabled()
         val pledges = db.pledgeDao().getAll()
         if (alerts.isEmpty() && pledges.isEmpty()) return 0

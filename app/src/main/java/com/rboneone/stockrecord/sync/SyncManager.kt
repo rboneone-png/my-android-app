@@ -40,6 +40,7 @@ class SyncManager(private val app: StockApp) {
             highWatch = db.highWatchDao().getAll(),
             cashFlows = db.cashFlowDao().getAll(),
             loans = db.loanDao().getAll(),
+            splits = db.stockSplitDao().getAll(),
             clecLivingCost = app.settings(userId).clecLivingCost.value,
             clecMethod = app.settings(userId).clecMethod.value,
             clecOverrides = app.settings(userId).clecOverrides.value,
@@ -123,6 +124,8 @@ class SyncManager(private val app: StockApp) {
             db.cashFlowDao().insertAll(data.cashFlows)
             db.loanDao().deleteAll()
             db.loanDao().insertAll(data.loans)
+            db.stockSplitDao().deleteAll()
+            db.stockSplitDao().insertAll(data.splits)
         }
         app.settings(userId).update(data.fees)
         app.settings(userId).setCash(data.cash)

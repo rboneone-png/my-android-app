@@ -70,6 +70,8 @@ import com.rboneone.stockrecord.ui.screens.DividendEditScreen
 import com.rboneone.stockrecord.ui.screens.HoldingsScreen
 import com.rboneone.stockrecord.ui.screens.MonthlyReturnScreen
 import com.rboneone.stockrecord.ui.screens.SettingsScreen
+import com.rboneone.stockrecord.ui.screens.SplitEditScreen
+import com.rboneone.stockrecord.ui.screens.SplitPickScreen
 import com.rboneone.stockrecord.ui.screens.TradeEditScreen
 import com.rboneone.stockrecord.ui.screens.TradesScreen
 import com.rboneone.stockrecord.ui.screens.WatchlistScreen
@@ -86,6 +88,7 @@ private enum class Tab(val route: String, val label: String, val icon: ImageVect
 
 private const val RECORDS_ROUTE = "records"
 private const val ALERTS_ROUTE = "alerts"
+private const val SPLIT_PICK_ROUTE = "split-pick"
 private const val PLEDGE_PICK_ROUTE = "pledge-pick"
 private fun tradeRoute(id: Long = 0) = "trade/$id"
 private fun dividendRoute(id: Long = 0) = "dividend/$id"
@@ -156,6 +159,10 @@ fun StockRecordApp(vm: AppViewModel) {
                             text = { Text("新增股利") },
                             onClick = { addMenu = false; nav.navigate(dividendRoute()) },
                         )
+                        DropdownMenuItem(
+                            text = { Text("股票分割") },
+                            onClick = { addMenu = false; nav.navigate(SPLIT_PICK_ROUTE) },
+                        )
                     }
                 }
             }
@@ -192,6 +199,32 @@ fun StockRecordApp(vm: AppViewModel) {
                     onEdit = { nav.navigate("cash/$it") },
                     onAddLoan = { nav.navigate("loan/0") },
                     onEditLoan = { nav.navigate("loan/$it") },
+                )
+            }
+            // 股票分割：先選庫存股，再進分割設定
+            composable(SPLIT_PICK_ROUTE) {
+                SplitPickScreen(
+                    vm,
+                    onPick = { market, symbol -> nav.navigate("split-edit/0?market=${market.name}&symbol=${Uri.encode(symbol)}") },
+                    onOpenSplit = { nav.navigate("split-edit/$it") },
+                    onBack = { nav.popBackStack() },
+                )
+            }
+            composable(
+                "split-edit/{id}?market={market}&symbol={symbol}",
+                arguments = listOf(
+                    navArgument("id") { type = NavType.LongType },
+                    navArgument("market") { type = NavType.StringType; defaultValue = Market.TW.name },
+                    navArgument("symbol") { type = NavType.StringType; defaultValue = "" },
+                ),
+            ) { entry ->
+                SplitEditScreen(
+                    vm = vm,
+                    splitId = entry.arguments?.getLong("id") ?: 0,
+                    initialMarket = Market.valueOf(entry.arguments?.getString("market") ?: Market.TW.name),
+                    initialSymbol = entry.arguments?.getString("symbol").orEmpty(),
+                    onBack = { nav.popBackStack() },
+                    onDone = { nav.popBackStack(SPLIT_PICK_ROUTE, inclusive = false) },
                 )
             }
             composable("loan/{id}", arguments = listOf(navArgument("id") { type = NavType.LongType })) { entry ->

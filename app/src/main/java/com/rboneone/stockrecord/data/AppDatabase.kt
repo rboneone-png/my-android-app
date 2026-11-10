@@ -6,8 +6,8 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
-    entities = [Trade::class, StockInfo::class, Quote::class, Dividend::class, StockCategory::class, PriceAlert::class, Pledge::class, WatchItem::class, HighWatchItem::class, CashFlow::class, Loan::class],
-    version = 12,
+    entities = [Trade::class, StockInfo::class, Quote::class, Dividend::class, StockCategory::class, PriceAlert::class, Pledge::class, WatchItem::class, HighWatchItem::class, CashFlow::class, Loan::class, StockSplit::class],
+    version = 13,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -18,6 +18,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun alertDao(): AlertDao
     abstract fun pledgeDao(): PledgeDao
     abstract fun loanDao(): LoanDao
+    abstract fun stockSplitDao(): StockSplitDao
     abstract fun watchDao(): WatchDao
     abstract fun highWatchDao(): HighWatchDao
     abstract fun cashFlowDao(): CashFlowDao
@@ -120,6 +121,18 @@ abstract class AppDatabase : RoomDatabase() {
         val MIGRATION_9_10 = object : Migration(9, 10) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE `dividends` ADD COLUMN `perShare` REAL")
+            }
+        }
+
+        /** v12 → v13：新增股票分割資料表 */
+        val MIGRATION_12_13 = object : Migration(12, 13) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `stock_splits` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "`market` TEXT NOT NULL, `symbol` TEXT NOT NULL, `name` TEXT NOT NULL, " +
+                        "`suspendDate` INTEGER NOT NULL, `resumeDate` INTEGER NOT NULL, `ratio` INTEGER NOT NULL, " +
+                        "`applied` INTEGER NOT NULL)"
+                )
             }
         }
 

@@ -11,6 +11,8 @@ import com.rboneone.stockrecord.data.AssetCategory
 import com.rboneone.stockrecord.data.CashFlow
 import com.rboneone.stockrecord.data.Dividend
 import com.rboneone.stockrecord.data.Loan
+import com.rboneone.stockrecord.data.SplitApplier
+import com.rboneone.stockrecord.data.StockSplit
 import com.rboneone.stockrecord.data.LookupResult
 import com.rboneone.stockrecord.data.Market
 import com.rboneone.stockrecord.data.Quote
@@ -98,6 +100,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val highWatchDao = db.highWatchDao()
     private val cashFlowDao = db.cashFlowDao()
     private val loanDao = db.loanDao()
+    private val splitDao = db.stockSplitDao()
     private val settingsRepository = app.settings(userId)
     private val marketRepository = app.marketRepository(userId)
 
@@ -197,6 +200,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private var lastRefresh = 0L
 
     init {
+        viewModelScope.launch { applyDueSplits() }
         val s = sync.value
         if (s.auto && s.autoFileUri != null) app.syncManager.schedule(userId, s.totalHours(), replace = false)
     }
@@ -208,6 +212,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             _refreshing.value = !quiet
             try {
+                applyDueSplits()
                 val open = Portfolio.build(tradeDao.getAll(), dividendDao.getAll())
                     .filter { it.isOpen }
                     .map { it.market to it.symbol }
@@ -542,6 +547,31 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun deleteCashFlow(flow: CashFlow) {
         viewModelScope.launch { cashFlowDao.delete(flow) }
+    }
+
+    // ---- 股票分割 ----
+
+    val splits: StateFlow<List<StockSplit>> = splitDao.observeAll()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    suspend fun getSplit(id: Long): StockSplit? = splitDao.get(id)
+
+    /** 到了恢復交易日的分割，自動調整股數與價格 */
+    private suspend fun applyDueSplits() {
+        runCatching { SplitApplier.applyDue(db, LocalDate.now().toEpochDay()) }
+    }
+
+    /** 儲存分割設定；恢復交易日已經到了的話，馬上就會調整 */
+    fun saveSplit(split: StockSplit) {
+        viewModelScope.launch {
+            splitDao.upsert(split.copy(applied = false))
+            applyDueSplits()
+        }
+    }
+
+    /** 刪除尚未執行的分割，或還原已執行的分割 */
+    fun undoSplit(split: StockSplit) {
+        viewModelScope.launch { SplitApplier.undo(db, split) }
     }
 
     // ---- 貸款 ----

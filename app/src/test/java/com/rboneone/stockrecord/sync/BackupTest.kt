@@ -123,4 +123,12 @@ class BackupTest {
         val old = Backup.parse("""{"version":1,"exportedAt":1,"trades":[],"dividends":[],"pledges":[{"id":3,"symbol":"2330","name":"x","shares":1000,"amount":1000,"ratePct":2,"date":5}]}""")
         assertEquals(null, old.pledges.single().returnDate)
     }
+
+    @Test
+    fun splitsRoundTrip_andOldBackupHasNone() {
+        val sp = com.rboneone.stockrecord.data.StockSplit(7, Market.TW, "0050", "元大台灣50", 100, 110, 5, true)
+        val data = Backup.parse(Backup.serialize(BackupData(1, emptyList(), emptyList(), FeeSettings(), splits = listOf(sp))))
+        assertEquals(listOf(sp), data.splits)
+        assertEquals(emptyList<com.rboneone.stockrecord.data.StockSplit>(), Backup.parse("""{"version":1,"exportedAt":1,"trades":[],"dividends":[]}""").splits)
+    }
 }
