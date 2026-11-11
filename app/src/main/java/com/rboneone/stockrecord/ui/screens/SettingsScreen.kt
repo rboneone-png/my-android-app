@@ -56,6 +56,7 @@ import com.rboneone.stockrecord.auth.Biometric
 import com.rboneone.stockrecord.data.SettingsRepository
 import com.rboneone.stockrecord.domain.FeeSettings
 import com.rboneone.stockrecord.ui.AppViewModel
+import com.rboneone.stockrecord.ui.ReleaseNotes
 import com.rboneone.stockrecord.ui.formatTime
 import com.rboneone.stockrecord.ui.plainNumber
 import com.rboneone.stockrecord.ui.toAmountOrNull
@@ -63,7 +64,7 @@ import kotlinx.coroutines.launch
 
 
 @Composable
-fun SettingsScreen(vm: AppViewModel, onOpenAlerts: () -> Unit) {
+fun SettingsScreen(vm: AppViewModel, onOpenAlerts: () -> Unit, onOpenManual: () -> Unit) {
     val context = LocalContext.current
     val message by vm.message.collectAsStateWithLifecycle()
     LaunchedEffect(message) {
@@ -86,6 +87,8 @@ fun SettingsScreen(vm: AppViewModel, onOpenAlerts: () -> Unit) {
             SyncSection(vm)
             ExportSection(vm)
             FeeSection(vm)
+            ManualEntry(onOpenManual)
+            AboutSection()
         }
     }
 }
@@ -519,6 +522,95 @@ private fun AlertsEntry(vm: AppViewModel, onOpen: () -> Unit) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(end = 4.dp),
             )
+        }
+    }
+}
+
+/** 操作手冊：點一下在 App 內開啟（內建 PDF） */
+@Composable
+private fun ManualEntry(onOpen: () -> Unit) {
+    Card(Modifier.fillMaxWidth()) {
+        Row(
+            Modifier.fillMaxWidth().clickable(onClick = onOpen).padding(horizontal = 12.dp, vertical = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null)
+            Text("操作手冊", Modifier.padding(start = 4.dp).weight(1f), style = MaterialTheme.typography.titleMedium)
+        }
+    }
+}
+
+/** 關於：App 版本、本版修改處，以及歷史版本的更新說明（說明檔隨 App 一起打包） */
+@Composable
+private fun AboutSection() {
+    val context = LocalContext.current
+    val (versionName, versionCode) = remember {
+        runCatching {
+            val info = context.packageManager.getPackageInfo(context.packageName, 0)
+            (info.versionName ?: "") to info.longVersionCode
+        }.getOrDefault("" to 0L)
+    }
+    val notesFor = remember {
+        { version: String ->
+            runCatching { context.assets.open("v$version.md").bufferedReader(Charsets.UTF_8).use { it.readText() } }.getOrNull()
+        }
+    }
+    val olderVersions = remember {
+        (context.assets.list("") ?: emptyArray())
+            .mapNotNull { ReleaseNotes.versionOf(it) }
+            .filter { it != versionName }
+            .sortedWith(ReleaseNotes.newestFirst)
+    }
+    var showOlder by rememberSaveable { mutableStateOf(false) }
+    var openVersion by rememberSaveable { mutableStateOf<String?>(null) }
+
+    Section("關於") {
+        Text("股票記帳", style = MaterialTheme.typography.titleLarge)
+        Text("版本 $versionName（build $versionCode）", style = MaterialTheme.typography.bodyLarge)
+        HorizontalDivider()
+        Text("本版修改處", style = MaterialTheme.typography.titleSmall)
+        val current = notesFor(versionName)
+        if (current != null) NotesBody(current) else Hint("這個版本沒有附更新說明。")
+        if (olderVersions.isNotEmpty()) {
+            HorizontalDivider()
+            TextButton(onClick = { showOlder = !showOlder }) {
+                Text(if (showOlder) "收合歷史版本" else "查看歷史版本（${olderVersions.size}）")
+            }
+            if (showOlder) {
+                olderVersions.forEach { v ->
+                    val open = openVersion == v
+                    Row(
+                        Modifier.fillMaxWidth().clickable { openVersion = if (open) null else v }.padding(vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(
+                            if (open) Icons.Filled.KeyboardArrowDown else Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                            contentDescription = null,
+                        )
+                        Text("版本 $v", Modifier.padding(start = 4.dp), style = MaterialTheme.typography.titleSmall)
+                    }
+                    if (open) notesFor(v)?.let { NotesBody(it) }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun NotesBody(markdown: String) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        ReleaseNotes.parse(markdown).forEach { line ->
+            when (line.kind) {
+                ReleaseNotes.Kind.HEADING -> Text(
+                    line.text, Modifier.padding(top = 6.dp),
+                    style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary,
+                )
+                ReleaseNotes.Kind.BULLET -> Text(
+                    "•  ${line.text}", Modifier.padding(start = (12 * (line.indent + 0)).dp),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                ReleaseNotes.Kind.TEXT -> Text(line.text, style = MaterialTheme.typography.bodyMedium)
+            }
         }
     }
 }

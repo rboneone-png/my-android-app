@@ -69,6 +69,7 @@ import androidx.navigation.navArgument
 import com.rboneone.stockrecord.ui.screens.DividendEditScreen
 import com.rboneone.stockrecord.ui.screens.HoldingsScreen
 import com.rboneone.stockrecord.ui.screens.MonthlyReturnScreen
+import com.rboneone.stockrecord.ui.screens.ManualScreen
 import com.rboneone.stockrecord.ui.screens.SettingsScreen
 import com.rboneone.stockrecord.ui.screens.SplitEditScreen
 import com.rboneone.stockrecord.ui.screens.SplitPickScreen
@@ -302,7 +303,9 @@ fun StockRecordApp(vm: AppViewModel) {
                 )
             }
             composable(Tab.WATCH.route) { WatchlistScreen(vm) }
-            composable(Tab.SETTINGS.route) { SettingsScreen(vm, onOpenAlerts = { nav.navigate(ALERTS_ROUTE) }) }
+            composable(Tab.SETTINGS.route) { SettingsScreen(vm, onOpenAlerts = { nav.navigate(ALERTS_ROUTE) }, onOpenManual = { nav.navigate("manual") }) }
+            // 操作手冊：從設定頁的「操作手冊」進入
+            composable("manual") { ManualScreen(onBack = { nav.popBackStack() }) }
             // 股價通知：從設定頁的「股價通知」進入
             composable(ALERTS_ROUTE) {
                 AlertsScreen(vm, onEdit = { nav.navigate("alert/$it") }, onBack = { nav.popBackStack() })
