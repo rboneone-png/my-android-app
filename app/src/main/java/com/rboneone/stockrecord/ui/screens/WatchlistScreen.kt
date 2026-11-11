@@ -28,6 +28,8 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -72,7 +74,10 @@ fun WatchlistScreen(vm: AppViewModel) {
     val refreshing by vm.refreshing.collectAsStateWithLifecycle()
     val refreshSeconds by vm.refreshSeconds.collectAsStateWithLifecycle()
     val lifecycle = LocalLifecycleOwner.current.lifecycle
-    var tab by rememberSaveable { mutableStateOf(WatchTab.STOCKS) }
+    // 三個項目放在可左右滑動的分頁裡：手勢左滑／右滑或點上方標籤都能切換
+    val pagerState = rememberPagerState { WatchTab.entries.size }
+    val scope = rememberCoroutineScope()
+    val tab = WatchTab.entries[pagerState.currentPage]
 
     // 畫面顯示時依設定秒數自動更新報價
     LaunchedEffect(refreshSeconds) {
@@ -100,13 +105,17 @@ fun WatchlistScreen(vm: AppViewModel) {
                 }
             },
         )
-        TabRow(selectedTabIndex = tab.ordinal) {
+        TabRow(selectedTabIndex = pagerState.currentPage) {
             WatchTab.entries.forEach { t ->
-                Tab(selected = tab == t, onClick = { tab = t }, text = { Text(t.label) })
+                Tab(
+                    selected = tab == t,
+                    onClick = { scope.launch { pagerState.animateScrollToPage(t.ordinal) } },
+                    text = { Text(t.label) },
+                )
             }
         }
-        Box(Modifier.weight(1f)) {
-            when (tab) {
+        HorizontalPager(state = pagerState, modifier = Modifier.weight(1f)) { page ->
+            when (WatchTab.entries[page]) {
                 WatchTab.STOCKS -> WatchStocksTab(vm, refreshSeconds, indices = false)
                 WatchTab.INDEX -> WatchStocksTab(vm, refreshSeconds, indices = true)
                 WatchTab.HIGH -> HighWatchTab(vm, refreshSeconds)
