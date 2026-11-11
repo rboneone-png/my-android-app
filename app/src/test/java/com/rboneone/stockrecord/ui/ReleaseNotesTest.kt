@@ -1,7 +1,6 @@
 package com.rboneone.stockrecord.ui
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
 import org.junit.Test
 
 class ReleaseNotesTest {
@@ -28,17 +27,5 @@ class ReleaseNotesTest {
             ),
             lines,
         )
-    }
-
-    @Test fun versionOfAssetName() {
-        assertEquals("2.12.0", ReleaseNotes.versionOf("v2.12.0.md"))
-        assertEquals("1.0.0", ReleaseNotes.versionOf("v1.0.0.md"))
-        assertNull(ReleaseNotes.versionOf("manual.pdf"))
-        assertNull(ReleaseNotes.versionOf("README.md"))
-    }
-
-    @Test fun sortsNewestFirstNumerically() {
-        val sorted = listOf("2.9.0", "2.10.0", "1.16.0", "2.2.1", "2.2.0").sortedWith(ReleaseNotes.newestFirst)
-        assertEquals(listOf("2.10.0", "2.9.0", "2.2.1", "2.2.0", "1.16.0"), sorted)
     }
 }

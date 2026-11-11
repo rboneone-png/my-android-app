@@ -27,19 +27,4 @@ object ReleaseNotes {
         }
         return out
     }
-
-    /** 檔名 v2.12.0.md → 2.12.0；不是版本說明檔回傳 null */
-    fun versionOf(assetName: String): String? =
-        Regex("""^v(\d+(?:\.\d+)*)\.md$""").find(assetName)?.groupValues?.get(1)
-
-    /** 版本號由新到舊排序用：2.10.0 > 2.9.0 */
-    val newestFirst: Comparator<String> = Comparator { a, b ->
-        val x = a.split('.').map { it.toIntOrNull() ?: 0 }
-        val y = b.split('.').map { it.toIntOrNull() ?: 0 }
-        for (i in 0 until maxOf(x.size, y.size)) {
-            val c = (y.getOrElse(i) { 0 }).compareTo(x.getOrElse(i) { 0 })
-            if (c != 0) return@Comparator c
-        }
-        0
-    }
 }

@@ -540,7 +540,7 @@ private fun ManualEntry(onOpen: () -> Unit) {
     }
 }
 
-/** 關於：App 版本、本版修改處，以及歷史版本的更新說明（說明檔隨 App 一起打包） */
+/** 關於：App 版本與本版修改處（說明檔 docs/release-notes/v<版本>.md 隨 App 一起打包） */
 @Composable
 private fun AboutSection() {
     val context = LocalContext.current
@@ -555,15 +555,6 @@ private fun AboutSection() {
             runCatching { context.assets.open("v$version.md").bufferedReader(Charsets.UTF_8).use { it.readText() } }.getOrNull()
         }
     }
-    val olderVersions = remember {
-        (context.assets.list("") ?: emptyArray())
-            .mapNotNull { ReleaseNotes.versionOf(it) }
-            .filter { it != versionName }
-            .sortedWith(ReleaseNotes.newestFirst)
-    }
-    var showOlder by rememberSaveable { mutableStateOf(false) }
-    var openVersion by rememberSaveable { mutableStateOf<String?>(null) }
-
     Section("關於") {
         Text("股票記帳", style = MaterialTheme.typography.titleLarge)
         Text("版本 $versionName（build $versionCode）", style = MaterialTheme.typography.bodyLarge)
@@ -571,28 +562,6 @@ private fun AboutSection() {
         Text("本版修改處", style = MaterialTheme.typography.titleSmall)
         val current = notesFor(versionName)
         if (current != null) NotesBody(current) else Hint("這個版本沒有附更新說明。")
-        if (olderVersions.isNotEmpty()) {
-            HorizontalDivider()
-            TextButton(onClick = { showOlder = !showOlder }) {
-                Text(if (showOlder) "收合歷史版本" else "查看歷史版本（${olderVersions.size}）")
-            }
-            if (showOlder) {
-                olderVersions.forEach { v ->
-                    val open = openVersion == v
-                    Row(
-                        Modifier.fillMaxWidth().clickable { openVersion = if (open) null else v }.padding(vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Icon(
-                            if (open) Icons.Filled.KeyboardArrowDown else Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                            contentDescription = null,
-                        )
-                        Text("版本 $v", Modifier.padding(start = 4.dp), style = MaterialTheme.typography.titleSmall)
-                    }
-                    if (open) notesFor(v)?.let { NotesBody(it) }
-                }
-            }
-        }
     }
 }
 
