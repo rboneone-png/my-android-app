@@ -62,6 +62,7 @@ fun TradesScreen(
     onAddTrade: () -> Unit,
     onAddDividend: () -> Unit,
 ) {
+    val swipe by vm.swipeNav.collectAsStateWithLifecycle()
     var addMenu by remember { mutableStateOf(false) }
     val trades by vm.trades.collectAsStateWithLifecycle()
     val dividends by vm.dividends.collectAsStateWithLifecycle()
@@ -93,6 +94,10 @@ fun TradesScreen(
             Tab(selected = !showDividends, onClick = { onShowDividendsChange(false) }, text = { Text("買賣紀錄") })
             Tab(selected = showDividends, onClick = { onShowDividendsChange(true) }, text = { Text("股利紀錄") })
         }
+        // 左滑／右滑切換買賣紀錄、股利紀錄（設定可關閉）；裡面的 return@Column 只結束這一塊內容
+        Column(
+            Modifier.fillMaxSize().swipeToSwitch(swipe) { d -> onShowDividendsChange(d > 0) },
+        ) {
         Row(
             Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -142,6 +147,7 @@ fun TradesScreen(
                     if (open) items(list, key = { it.id }) { TradeRow(it, onClick = { onTradeClick(it) }) }
                 }
             }
+        }
         }
     }
 }

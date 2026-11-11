@@ -99,10 +99,14 @@ fun MonthlyReturnScreen(vm: AppViewModel) {
                 Tab(selected = market == m, onClick = { market = m }, text = { Text(m.label) })
             }
         }
-        // 左滑／右滑切換台股、美股（設定可關閉）；裡面的 return@Column 只結束這一塊內容
+        // 左滑／右滑依序切換（台股月報酬、台股資產走勢、美股月報酬、美股資產走勢；設定可關閉）；裡面的 return@Column 只結束這一塊內容
         Column(
             Modifier.fillMaxSize().swipeToSwitch(swipe) { d ->
-                market = Market.entries[(market.ordinal + d).coerceIn(0, Market.entries.size - 1)]
+                // 四種組合依序：台股月報酬 → 台股資產走勢 → 美股月報酬 → 美股資產走勢
+                val i = (market.ordinal * ReturnMode.entries.size + mode.ordinal + d)
+                    .coerceIn(0, Market.entries.size * ReturnMode.entries.size - 1)
+                market = Market.entries[i / ReturnMode.entries.size]
+                mode = ReturnMode.entries[i % ReturnMode.entries.size]
             },
         ) {
         Row(
