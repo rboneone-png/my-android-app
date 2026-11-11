@@ -83,6 +83,7 @@ fun SettingsScreen(vm: AppViewModel, onOpenAlerts: () -> Unit, onOpenManual: () 
             AccountSection(vm)
             RefreshSection(vm)
             ThemeSection(vm)
+            SwipeSection(vm)
             AlertsEntry(vm, onOpenAlerts)
             SyncSection(vm)
             ExportSection(vm)
@@ -502,6 +503,19 @@ private fun ThemeSection(vm: AppViewModel) {
             FilterChip(selected = dark, onClick = { vm.setDarkTheme(true) }, label = { Text("深色模式") })
         }
         Hint("預設為淺色模式；選擇後馬上生效，登入頁也會套用。")
+    }
+}
+
+/** 手勢切換：左右滑動切換分頁，預設開啟 */
+@Composable
+private fun SwipeSection(vm: AppViewModel) {
+    val enabled by vm.swipeNav.collectAsStateWithLifecycle()
+    Section("手勢切換") {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("左右滑動切換分頁", Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
+            Switch(checked = enabled, onCheckedChange = { vm.setSwipeNav(it) })
+        }
+        Hint("開啟時，可在觀察（觀察股票／指數／股票漲跌）、持股／月報酬／圖表（台股／美股）、資產配置（資產配置／CLEC）用手勢左滑或右滑切換；關閉後只能點上方標籤。預設為開啟。")
     }
 }
 

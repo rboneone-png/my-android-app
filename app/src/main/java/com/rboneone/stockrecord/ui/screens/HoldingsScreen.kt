@@ -90,6 +90,7 @@ fun HoldingsScreen(
     onOpenCharts: () -> Unit,
     onOpenRecords: () -> Unit,
 ) {
+    val swipe by vm.swipeNav.collectAsStateWithLifecycle()
     val portfolio by vm.portfolio.collectAsStateWithLifecycle()
     val refreshing by vm.refreshing.collectAsStateWithLifecycle()
     val message by vm.message.collectAsStateWithLifecycle()
@@ -137,6 +138,12 @@ fun HoldingsScreen(
                 Tab(selected = market == m, onClick = { market = m }, text = { Text(m.label) })
             }
         }
+        // 左滑／右滑切換台股、美股（設定可關閉）
+        Column(
+            Modifier.fillMaxSize().swipeToSwitch(swipe) { d ->
+                market = Market.entries[(market.ordinal + d).coerceIn(0, Market.entries.size - 1)]
+            },
+        ) {
         if (uncategorized > 0) {
             Card(
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
@@ -170,6 +177,7 @@ fun HoldingsScreen(
                     onOrderChanged = { vm.setHoldingOrder(market, it) },
                 )
             }
+        }
         }
     }
 }

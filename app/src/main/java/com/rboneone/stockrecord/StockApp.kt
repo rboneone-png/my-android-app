@@ -27,6 +27,16 @@ class StockApp : Application() {
     /** 配色模式：true＝深色模式、false＝淺色模式（預設淺色）。整個 App 共用，登入頁也套用 */
     val darkTheme: StateFlow<Boolean> get() = _darkTheme.asStateFlow()
 
+    private val _swipeNav by lazy { MutableStateFlow(appPrefs.getBoolean(KEY_SWIPE_NAV, true)) }
+
+    /** 左右滑動切換分頁：預設開啟。整個 App 共用 */
+    val swipeNav: StateFlow<Boolean> get() = _swipeNav.asStateFlow()
+
+    fun setSwipeNav(enabled: Boolean) {
+        appPrefs.edit().putBoolean(KEY_SWIPE_NAV, enabled).apply()
+        _swipeNav.value = enabled
+    }
+
     fun setDarkTheme(dark: Boolean) {
         appPrefs.edit().putBoolean(KEY_DARK_THEME, dark).apply()
         _darkTheme.value = dark
@@ -111,6 +121,7 @@ class StockApp : Application() {
 
     companion object {
         private const val KEY_DARK_THEME = "dark_theme"
+        private const val KEY_SWIPE_NAV = "swipe_nav"
         private const val LEGACY_DB = "stock.db"
         fun databaseName(userId: String) = "stock_$userId.db"
     }

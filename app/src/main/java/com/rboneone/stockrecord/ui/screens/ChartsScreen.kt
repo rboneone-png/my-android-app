@@ -69,6 +69,7 @@ private data class Slice(val label: String, val value: Double, val color: Color)
 
 @Composable
 fun ChartsScreen(vm: AppViewModel, onBack: () -> Unit) {
+    val swipe by vm.swipeNav.collectAsStateWithLifecycle()
     val portfolio by vm.portfolio.collectAsStateWithLifecycle()
     val monthly by vm.monthlyIncome.collectAsStateWithLifecycle()
     val message by vm.message.collectAsStateWithLifecycle()
@@ -101,7 +102,13 @@ fun ChartsScreen(vm: AppViewModel, onBack: () -> Unit) {
             }
         }
         Column(
-            Modifier.verticalScroll(rememberScrollState()).padding(16.dp),
+            Modifier
+                .fillMaxSize()
+                .swipeToSwitch(swipe) { d ->
+                    market = Market.entries[(market.ordinal + d).coerceIn(0, Market.entries.size - 1)]
+                }
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             PieCard(market, portfolio)

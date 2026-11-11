@@ -89,6 +89,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     /** 配色模式（整個 App 共用）：true＝深色模式，預設淺色 */
     val darkTheme: StateFlow<Boolean> = app.darkTheme
     fun setDarkTheme(dark: Boolean) = app.setDarkTheme(dark)
+    val swipeNav: StateFlow<Boolean> = app.swipeNav
+    fun setSwipeNav(enabled: Boolean) = app.setSwipeNav(enabled)
     private val userId: String = requireNotNull(app.session.value) { "尚未登入" }.id
 
     private val db = app.database(userId)

@@ -71,6 +71,7 @@ private enum class WatchTab(val label: String) { STOCKS("觀察股票"), INDEX("
 
 @Composable
 fun WatchlistScreen(vm: AppViewModel) {
+    val swipe by vm.swipeNav.collectAsStateWithLifecycle()
     val refreshing by vm.refreshing.collectAsStateWithLifecycle()
     val refreshSeconds by vm.refreshSeconds.collectAsStateWithLifecycle()
     val lifecycle = LocalLifecycleOwner.current.lifecycle
@@ -114,7 +115,7 @@ fun WatchlistScreen(vm: AppViewModel) {
                 )
             }
         }
-        HorizontalPager(state = pagerState, modifier = Modifier.weight(1f)) { page ->
+        HorizontalPager(state = pagerState, modifier = Modifier.weight(1f), userScrollEnabled = swipe) { page ->
             when (WatchTab.entries[page]) {
                 WatchTab.STOCKS -> WatchStocksTab(vm, refreshSeconds, indices = false)
                 WatchTab.INDEX -> WatchStocksTab(vm, refreshSeconds, indices = true)

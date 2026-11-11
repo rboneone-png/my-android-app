@@ -72,6 +72,7 @@ private fun pctText(v: Double?) = v?.let { "%.1f%%".format(it) } ?: "--"
 
 @Composable
 fun AllocationScreen(vm: AppViewModel) {
+    val swipe by vm.swipeNav.collectAsStateWithLifecycle()
     val allocation by vm.allocation.collectAsStateWithLifecycle()
     // 已展開的群組；預設全部收合
     var expandedGroups by rememberSaveable { mutableStateOf(setOf<String>()) }
@@ -90,11 +91,14 @@ fun AllocationScreen(vm: AppViewModel) {
         }
         val a = allocation
         if (a == null) return@Column
+        // 左滑／右滑切換「資產配置」「CLEC退休投資策略」（設定可關閉）
+        val swipeModifier = Modifier.weight(1f).fillMaxWidth().swipeToSwitch(swipe) { d -> tab = (tab + d).coerceIn(0, 1) }
         if (tab == 1) {
-            ClecTab(vm, a)
+            Box(swipeModifier) { ClecTab(vm, a) }
             return@Column
         }
         LazyColumn(
+            modifier = swipeModifier,
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {

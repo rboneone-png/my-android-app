@@ -13,8 +13,8 @@ android {
         applicationId = "com.rboneone.stockrecord"
         minSdk = 26
         targetSdk = 35
-        versionCode = 62
-        versionName = "2.14.0"
+        versionCode = 63
+        versionName = "2.15.0"
     }
 
     signingConfigs {

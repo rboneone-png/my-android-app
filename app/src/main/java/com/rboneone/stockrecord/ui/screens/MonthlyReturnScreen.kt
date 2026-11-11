@@ -65,6 +65,7 @@ private enum class ReturnMode(val label: String) { MONTHLY("月報酬"), TREND("
 
 @Composable
 fun MonthlyReturnScreen(vm: AppViewModel) {
+    val swipe by vm.swipeNav.collectAsStateWithLifecycle()
     val state by vm.month.collectAsStateWithLifecycle()
     var market by rememberSaveable { mutableStateOf(Market.TW) }
     var monthText by rememberSaveable { mutableStateOf(YearMonth.now().toString()) }
@@ -98,6 +99,12 @@ fun MonthlyReturnScreen(vm: AppViewModel) {
                 Tab(selected = market == m, onClick = { market = m }, text = { Text(m.label) })
             }
         }
+        // 左滑／右滑切換台股、美股（設定可關閉）；裡面的 return@Column 只結束這一塊內容
+        Column(
+            Modifier.fillMaxSize().swipeToSwitch(swipe) { d ->
+                market = Market.entries[(market.ordinal + d).coerceIn(0, Market.entries.size - 1)]
+            },
+        ) {
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -175,6 +182,7 @@ fun MonthlyReturnScreen(vm: AppViewModel) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(vertical = 16.dp),
             )
+        }
         }
     }
 }
