@@ -203,9 +203,8 @@ private fun MarketList(
     var order by remember(market, savedOrder) { mutableStateOf(savedOrder) }
     val open = positions.filter { it.holding.isOpen }.inCustomOrder(order)
     val closed = positions.filter { !it.holding.isOpen }
-    // 庫存股清單可展開／收合（預設收合）；台股、美股各自記住
-    var inventoryOpen by rememberSaveable(market) { mutableStateOf(false) }
-    // 庫存股依股票分類（原型、正二、類現金、個股、其他、未分類）分組；各組可展開／收合，預設全部收合
+    // 庫存股一律展開，直接看到各分類；依股票分類（原型、正二、類現金、個股、其他、未分類）分組，
+    // 各組可展開／收合，預設全部收合；台股、美股各自記住
     var openGroups by rememberSaveable(market) { mutableStateOf(setOf<String>()) }
     fun categoryOf(p: Position): AssetCategory? = categories[p.holding.market to p.holding.symbol]
     val groups = (AssetCategory.entries.map<AssetCategory, AssetCategory?> { it } + listOf(null))
@@ -234,7 +233,7 @@ private fun MarketList(
     ) {
         item(key = "summary") { SummaryHeader(view, summary, hidden) }
         item(key = "inventory") {
-            SectionHeader("庫存股(${open.size})", expanded = inventoryOpen, onToggle = { inventoryOpen = !inventoryOpen }) {
+            SectionHeader("庫存股(${open.size})") {
                 Text("合計: ", style = MaterialTheme.typography.bodyMedium)
                 Text(
                     if (hidden) HIDDEN else formatSignedAmount(market, summary.totalPnl),
@@ -244,8 +243,8 @@ private fun MarketList(
                 )
             }
         }
-        if (inventoryOpen) item(key = "table-header") { TableHeader() }
-        if (inventoryOpen) groups.forEach { (category, list) ->
+        item(key = "table-header") { TableHeader() }
+        groups.forEach { (category, list) ->
             val groupKey = category?.name ?: "NONE"
             val expanded = groupKey in openGroups
             item(key = "group-$groupKey") {
