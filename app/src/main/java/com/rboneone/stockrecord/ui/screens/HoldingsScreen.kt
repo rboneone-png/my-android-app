@@ -199,8 +199,8 @@ private fun MarketList(
     var order by remember(market, savedOrder) { mutableStateOf(savedOrder) }
     val open = positions.filter { it.holding.isOpen }.inCustomOrder(order)
     val closed = positions.filter { !it.holding.isOpen }
-    // 庫存股清單可展開／收合（預設展開）；台股、美股各自記住
-    var inventoryOpen by rememberSaveable(market) { mutableStateOf(true) }
+    // 庫存股清單可展開／收合（預設收合）；台股、美股各自記住
+    var inventoryOpen by rememberSaveable(market) { mutableStateOf(false) }
     val listState = rememberLazyListState()
     val haptic = LocalHapticFeedback.current
     val reorderState = rememberReorderableLazyListState(listState) { from, to ->
