@@ -206,6 +206,8 @@ private fun MarketList(
     // 庫存股一律展開，直接看到各分類；依股票分類（原型、正二、類現金、個股、其他、未分類）分組，
     // 各組可展開／收合，預設全部收合；台股、美股各自記住
     var openGroups by rememberSaveable(market) { mutableStateOf(setOf<String>()) }
+    // 已出清的股票也可展開／收合，預設收合
+    var closedOpen by rememberSaveable(market) { mutableStateOf(false) }
     fun categoryOf(p: Position): AssetCategory? = categories[p.holding.market to p.holding.symbol]
     val groups = (AssetCategory.entries.map<AssetCategory, AssetCategory?> { it } + listOf(null))
         .map { c -> c to open.filter { categoryOf(it) == c } }
@@ -282,8 +284,10 @@ private fun MarketList(
             }
         }
         if (closed.isNotEmpty()) {
-            item(key = "closed") { SectionHeader("已出清(${closed.size})") {} }
-            items(closed, key = { "closed-${it.holding.symbol}" }) {
+            item(key = "closed") {
+                SectionHeader("已出清(${closed.size})", expanded = closedOpen, onToggle = { closedOpen = !closedOpen }) {}
+            }
+            if (closedOpen) items(closed, key = { "closed-${it.holding.symbol}" }) {
                 ClosedRow(it, hidden)
                 HorizontalDivider()
             }
