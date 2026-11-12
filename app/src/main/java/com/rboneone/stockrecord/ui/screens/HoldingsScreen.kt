@@ -18,6 +18,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Refresh
 import com.rboneone.stockrecord.ui.theme.AppCard as Card
 import androidx.compose.material3.Surface
@@ -197,6 +199,8 @@ private fun MarketList(
     var order by remember(market, savedOrder) { mutableStateOf(savedOrder) }
     val open = positions.filter { it.holding.isOpen }.inCustomOrder(order)
     val closed = positions.filter { !it.holding.isOpen }
+    // 庫存股清單可展開／收合（預設展開）；台股、美股各自記住
+    var inventoryOpen by rememberSaveable(market) { mutableStateOf(true) }
     val listState = rememberLazyListState()
     val haptic = LocalHapticFeedback.current
     val reorderState = rememberReorderableLazyListState(listState) { from, to ->
@@ -216,7 +220,7 @@ private fun MarketList(
     ) {
         item(key = "summary") { SummaryHeader(view, summary, hidden) }
         item(key = "inventory") {
-            SectionHeader("庫存股(${open.size})") {
+            SectionHeader("庫存股(${open.size})", expanded = inventoryOpen, onToggle = { inventoryOpen = !inventoryOpen }) {
                 Text("合計: ", style = MaterialTheme.typography.bodyMedium)
                 Text(
                     if (hidden) HIDDEN else formatSignedAmount(market, summary.totalPnl),
@@ -226,8 +230,8 @@ private fun MarketList(
                 )
             }
         }
-        item(key = "table-header") { TableHeader() }
-        items(open, key = { OPEN_KEY + it.holding.symbol }) { p ->
+        if (inventoryOpen) item(key = "table-header") { TableHeader() }
+        if (inventoryOpen) items(open, key = { OPEN_KEY + it.holding.symbol }) { p ->
             ReorderableItem(reorderState, key = OPEN_KEY + p.holding.symbol) { dragging ->
                 Surface(
                     shadowElevation = if (dragging) 8.dp else 0.dp,
@@ -343,11 +347,17 @@ private fun SummaryCell(label: String, value: String, modifier: Modifier, color:
 }
 
 @Composable
-private fun SectionHeader(title: String, trailing: @Composable () -> Unit) {
+private fun SectionHeader(
+    title: String,
+    expanded: Boolean? = null,
+    onToggle: (() -> Unit)? = null,
+    trailing: @Composable () -> Unit,
+) {
     Row(
         Modifier
             .fillMaxWidth()
             .background(MaterialTheme.colorScheme.surfaceVariant)
+            .then(if (onToggle != null) Modifier.clickable(onClickLabel = if (expanded == true) "收合" else "展開", onClick = onToggle) else Modifier)
             .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -358,6 +368,14 @@ private fun SectionHeader(title: String, trailing: @Composable () -> Unit) {
             modifier = Modifier.padding(start = 8.dp).weight(1f),
         )
         trailing()
+        // 可展開／收合時，右側顯示箭頭（展開＝向下、收合＝向右）
+        if (onToggle != null) {
+            Icon(
+                if (expanded == true) Icons.Filled.KeyboardArrowDown else Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = null,
+                modifier = Modifier.padding(start = 4.dp),
+            )
+        }
     }
 }
 
