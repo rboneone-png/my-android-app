@@ -58,6 +58,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
+import com.rboneone.stockrecord.data.AssetCategory
 import com.rboneone.stockrecord.data.Market
 import com.rboneone.stockrecord.domain.MarketSummary
 import com.rboneone.stockrecord.domain.PortfolioView
@@ -93,6 +94,7 @@ fun HoldingsScreen(
     onOpenRecords: () -> Unit,
 ) {
     val swipe by vm.swipeNav.collectAsStateWithLifecycle()
+    val categories by vm.categories.collectAsStateWithLifecycle()
     val portfolio by vm.portfolio.collectAsStateWithLifecycle()
     val refreshing by vm.refreshing.collectAsStateWithLifecycle()
     val message by vm.message.collectAsStateWithLifecycle()
@@ -153,7 +155,7 @@ fun HoldingsScreen(
             ) {
                 Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        "有 $uncategorized 檔持股尚未設定分類（原型／正二／類現金）",
+                        "有 $uncategorized 檔持股尚未設定分類（原型／正二／類現金／個股／其他）",
                         Modifier.weight(1f),
                         style = MaterialTheme.typography.bodyMedium,
                     )
@@ -177,6 +179,7 @@ fun HoldingsScreen(
                     view, summary, hidden, refreshSeconds,
                     savedOrder = holdingOrder[market].orEmpty(),
                     onOrderChanged = { vm.setHoldingOrder(market, it) },
+                    categories = categories,
                 )
             }
         }
@@ -192,6 +195,7 @@ private fun MarketList(
     refreshSeconds: Int,
     savedOrder: List<String>,
     onOrderChanged: (List<String>) -> Unit,
+    categories: Map<Pair<Market, String>, AssetCategory>,
 ) {
     val market = summary.market
     val positions = view.positions.filter { it.holding.market == market }
@@ -201,12 +205,22 @@ private fun MarketList(
     val closed = positions.filter { !it.holding.isOpen }
     // 庫存股清單可展開／收合（預設收合）；台股、美股各自記住
     var inventoryOpen by rememberSaveable(market) { mutableStateOf(false) }
+    // 庫存股依股票分類（原型、正二、類現金、個股、其他、未分類）分組；各組可展開／收合，預設全部收合
+    var openGroups by rememberSaveable(market) { mutableStateOf(setOf<String>()) }
+    fun categoryOf(p: Position): AssetCategory? = categories[p.holding.market to p.holding.symbol]
+    val groups = (AssetCategory.entries.map<AssetCategory, AssetCategory?> { it } + listOf(null))
+        .map { c -> c to open.filter { categoryOf(it) == c } }
+        .filter { it.second.isNotEmpty() }
     val listState = rememberLazyListState()
     val haptic = LocalHapticFeedback.current
     val reorderState = rememberReorderableLazyListState(listState) { from, to ->
         val fromSymbol = (from.key as? String)?.removePrefix(OPEN_KEY) ?: return@rememberReorderableLazyListState
         val toSymbol = (to.key as? String)?.takeIf { it.startsWith(OPEN_KEY) }?.removePrefix(OPEN_KEY)
             ?: return@rememberReorderableLazyListState
+        // 只能在同一個分類裡調整順序
+        val fromPos = open.firstOrNull { it.holding.symbol == fromSymbol }
+        val toPos = open.firstOrNull { it.holding.symbol == toSymbol }
+        if (fromPos == null || toPos == null || categoryOf(fromPos) != categoryOf(toPos)) return@rememberReorderableLazyListState
         val symbols = open.map { it.holding.symbol }.toMutableList()
         val toIndex = symbols.indexOf(toSymbol)
         symbols.remove(fromSymbol)
@@ -231,23 +245,39 @@ private fun MarketList(
             }
         }
         if (inventoryOpen) item(key = "table-header") { TableHeader() }
-        if (inventoryOpen) items(open, key = { OPEN_KEY + it.holding.symbol }) { p ->
-            ReorderableItem(reorderState, key = OPEN_KEY + p.holding.symbol) { dragging ->
-                Surface(
-                    shadowElevation = if (dragging) 8.dp else 0.dp,
-                    color = if (dragging) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surfaceContainerLowest,
-                ) {
-                    Column {
-                        PositionRow(
-                            p,
-                            hidden,
-                            Modifier.longPressDraggableHandle(
-                                onDragStarted = { haptic.performHapticFeedback(HapticFeedbackType.LongPress) },
-                                // 讀取狀態中的最新順序，避免拿到拖曳前的舊清單
-                                onDragStopped = { onOrderChanged(order) },
-                            ),
-                        )
-                        HorizontalDivider()
+        if (inventoryOpen) groups.forEach { (category, list) ->
+            val groupKey = category?.name ?: "NONE"
+            val expanded = groupKey in openGroups
+            item(key = "group-$groupKey") {
+                CategoryHeader(
+                    title = "${category?.label ?: "未分類"}（${list.size}）",
+                    pnl = list.sumOf { it.totalPnl ?: 0.0 },
+                    market = market,
+                    hidden = hidden,
+                    expanded = expanded,
+                    onToggle = { openGroups = if (expanded) openGroups - groupKey else openGroups + groupKey },
+                )
+            }
+            if (expanded) {
+                items(list, key = { OPEN_KEY + it.holding.symbol }) { p ->
+                    ReorderableItem(reorderState, key = OPEN_KEY + p.holding.symbol) { dragging ->
+                        Surface(
+                            shadowElevation = if (dragging) 8.dp else 0.dp,
+                            color = if (dragging) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surfaceContainerLowest,
+                        ) {
+                            Column {
+                                PositionRow(
+                                    p,
+                                    hidden,
+                                    Modifier.longPressDraggableHandle(
+                                        onDragStarted = { haptic.performHapticFeedback(HapticFeedbackType.LongPress) },
+                                        // 讀取狀態中的最新順序，避免拿到拖曳前的舊清單
+                                        onDragStopped = { onOrderChanged(order) },
+                                    ),
+                                )
+                                HorizontalDivider()
+                            }
+                        }
                     }
                 }
             }
@@ -377,6 +407,40 @@ private fun SectionHeader(
             )
         }
     }
+}
+
+/** 庫存股的分類標題：分類名稱（檔數）、該組總損益、展開／收合箭頭 */
+@Composable
+private fun CategoryHeader(
+    title: String,
+    pnl: Double,
+    market: Market,
+    hidden: Boolean,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surfaceContainerLow)
+            .clickable(onClickLabel = if (expanded) "收合" else "展開", onClick = onToggle)
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(title, style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+        Text(
+            if (hidden) HIDDEN else formatSignedAmount(market, pnl),
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Bold,
+            color = if (hidden) Color.Unspecified else pnlColor(pnl),
+        )
+        Icon(
+            if (expanded) Icons.Filled.KeyboardArrowDown else Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            contentDescription = null,
+            modifier = Modifier.padding(start = 4.dp),
+        )
+    }
+    HorizontalDivider()
 }
 
 private val W_STOCK = 1.25f
