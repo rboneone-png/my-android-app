@@ -31,6 +31,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -70,6 +73,8 @@ fun HighWatchTab(vm: AppViewModel, refreshSeconds: Int) {
     val haptic = LocalHapticFeedback.current
     var adding by remember { mutableStateOf(false) }
     var removing by remember { mutableStateOf<HighWatchItem?>(null) }
+    // 展開的股票（顯示技術點 P1～P5），預設全部收合
+    var expanded by rememberSaveable { mutableStateOf(setOf<Long>()) }
 
     // 最高價一天抓一次
     LaunchedEffect(Unit) { vm.refreshHighs(force = false) }
@@ -102,16 +107,27 @@ fun HighWatchTab(vm: AppViewModel, refreshSeconds: Int) {
                             color = if (dragging) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surface,
                         ) {
                             Column {
+                                val quote = quotes[item.market to item.symbol]
+                                val open = item.id in expanded
                                 HighRow(
                                     item,
-                                    quotes[item.market to item.symbol],
+                                    quote,
+                                    open,
                                     Modifier
                                         .longPressDraggableHandle(
                                             onDragStarted = { haptic.performHapticFeedback(HapticFeedbackType.LongPress) },
                                             onDragStopped = { vm.reorderHighWatch(order.map { it.id }) },
                                         )
-                                        .clickable { removing = item },
+                                        .clickable(onClickLabel = if (open) "收合" else "展開") {
+                                            expanded = if (open) expanded - item.id else expanded + item.id
+                                        },
                                 )
+                                if (open) {
+                                    DropLevelsPanel(
+                                        HighWatch.effectiveHigh(item.highPrice, quote?.price),
+                                        onRemove = { removing = item },
+                                    )
+                                }
                                 HorizontalDivider()
                             }
                         }
@@ -121,7 +137,8 @@ fun HighWatchTab(vm: AppViewModel, refreshSeconds: Int) {
                     Text(
                         "漲跌幅 = 現價 ÷ 最高價 × 100%\n" +
                             "最高價為近 2 年的最高股價，每天更新一次；現價每 $refreshSeconds 秒更新。\n" +
-                            "長按可拖曳調整順序，點一下可刪除。",
+                            "點一下股票展開技術點 P1～P5（從 2 年最高價下跌 10%～50% 的價位），再點收合。\n" +
+                            "長按可拖曳調整順序；要移除請展開後按「移除這檔」。",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center,
@@ -173,7 +190,7 @@ private fun HighHeader() {
 }
 
 @Composable
-private fun HighRow(item: HighWatchItem, quote: Quote?, modifier: Modifier) {
+private fun HighRow(item: HighWatchItem, quote: Quote?, expanded: Boolean, modifier: Modifier) {
     val price = quote?.price
     val high = HighWatch.effectiveHigh(item.highPrice, price)
     val ratio = HighWatch.ratio(price, high)
@@ -214,6 +231,46 @@ private fun HighRow(item: HighWatchItem, quote: Quote?, modifier: Modifier) {
                 color = if (newHigh) ProfitRed else Color.Unspecified,
             )
             if (newHigh) Text("創新高", style = sub, color = ProfitRed)
+        }
+        Icon(
+            if (expanded) Icons.Filled.KeyboardArrowDown else Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            contentDescription = null,
+            modifier = Modifier.padding(start = 4.dp),
+        )
+    }
+}
+
+/** 展開內容：技術點 P1～P5，股價 = 2 年最高點 × (1 − 下跌百分比) */
+@Composable
+private fun DropLevelsPanel(high: Double?, onRemove: () -> Unit) {
+    val style = MaterialTheme.typography.bodyMedium
+    val head = MaterialTheme.typography.bodySmall
+    val color = MaterialTheme.colorScheme.onSurfaceVariant
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surfaceContainerLow)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+    ) {
+        Row(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+            Text("技術點", Modifier.weight(1f), style = head, color = color)
+            Text("下跌百分比", Modifier.weight(1f), style = head, color = color, textAlign = TextAlign.End)
+            Text("股價", Modifier.weight(1f), style = head, color = color, textAlign = TextAlign.End)
+        }
+        val levels = HighWatch.dropLevels(high)
+        if (levels.isEmpty()) {
+            Text("還沒有 2 年最高價，抓到後才能計算", style = head, color = color, modifier = Modifier.padding(vertical = 8.dp))
+        } else {
+            levels.forEach { l ->
+                Row(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                    Text(l.label, Modifier.weight(1f), style = style, fontWeight = FontWeight.Bold)
+                    Text("${l.dropPct}%", Modifier.weight(1f), style = style, textAlign = TextAlign.End)
+                    Text(formatPrice(l.price), Modifier.weight(1f), style = style, textAlign = TextAlign.End)
+                }
+            }
+        }
+        TextButton(onClick = onRemove, modifier = Modifier.align(Alignment.End)) {
+            Text("移除這檔", color = MaterialTheme.colorScheme.error)
         }
     }
 }

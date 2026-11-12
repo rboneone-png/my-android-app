@@ -22,4 +22,23 @@ class HighWatchTest {
         assertNull(HighWatch.effectiveHigh(null, 150.0))
         assertEquals(100.0, HighWatch.ratio(210.0, HighWatch.effectiveHigh(200.0, 210.0))!!, 1e-9)
     }
+
+    @Test fun dropLevelsAreHighTimesOneMinusDrop() {
+        val levels = HighWatch.dropLevels(200.0)
+        assertEquals(listOf("P1", "P2", "P3", "P4", "P5"), levels.map { it.label })
+        assertEquals(listOf(10, 20, 30, 40, 50), levels.map { it.dropPct })
+        assertEquals(listOf(180.0, 160.0, 140.0, 120.0, 100.0), levels.map { it.price })
+    }
+
+    @Test fun dropLevelsUseEffectiveHighWhenPriceMakesNewHigh() {
+        // 現價 250 創新高，技術點以 250 計
+        val levels = HighWatch.dropLevels(HighWatch.effectiveHigh(200.0, 250.0))
+        assertEquals(225.0, levels.first().price, 1e-9)
+        assertEquals(125.0, levels.last().price, 1e-9)
+    }
+
+    @Test fun dropLevelsEmptyWithoutHigh() {
+        assertEquals(emptyList<HighWatch.DropLevel>(), HighWatch.dropLevels(null))
+        assertEquals(emptyList<HighWatch.DropLevel>(), HighWatch.dropLevels(0.0))
+    }
 }
