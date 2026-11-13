@@ -16,6 +16,7 @@ object ExcelExporter {
     private fun text(s: String) = Cell.Text(s)
     private fun money(market: Market, v: Double) = Cell.Number(v, if (market == Market.TW) 0 else 2)
     private fun dec(v: Double) = Cell.Number(v, 2)
+    private fun fx(v: Double) = Cell.Number(v, 4)
     private fun int(v: Double) = Cell.Number(v, 0)
     /** 股數：整股顯示整數，零股（美股小數股）才顯示小數 */
     private fun shares(v: Double) = Cell.Number(v, if (v % 1.0 == 0.0) 0 else 2)
@@ -38,7 +39,7 @@ object ExcelExporter {
         return listOf(
             Sheet(
                 "交易紀錄",
-                listOf("日期", "市場", "代號", "名稱", "買賣", "股數", "成交價", "成交金額", "手續費", "交易稅", "備註", "稅別"),
+                listOf("日期", "市場", "代號", "名稱", "買賣", "股數", "成交價", "成交金額", "手續費", "交易稅", "備註", "稅別", "匯率"),
                 trades.sortedWith(compareBy({ it.date }, { it.id })).map {
                     listOf(
                         date(it.date), text(it.market.label), text(it.symbol), text(it.name), text(it.type.label),
@@ -46,9 +47,11 @@ object ExcelExporter {
                         money(it.market, it.fee), money(it.market, it.tax), text(it.note),
                         // 稅別：台股才有（匯入時用來還原一般／ETF／當沖）
                         text(if (it.market == Market.TW) taxTypeShort(it.taxType) else ""),
+                        // 匯率：美股才有，交易當時的美元兌台幣
+                        opt(it.fxRate) { r -> fx(r) },
                     )
                 },
-                widths = listOf(12, 6, 10, 18, 6, 10, 10, 14, 10, 10, 20, 8),
+                widths = listOf(12, 6, 10, 18, 6, 10, 10, 14, 10, 10, 20, 8, 10),
             ),
             Sheet(
                 "持股",
@@ -71,15 +74,16 @@ object ExcelExporter {
             ),
             Sheet(
                 "股利",
-                listOf("發放日", "市場", "代號", "名稱", "現金股利", "扣稅／健保", "匯費", "實際入帳", "配股股數", "備註"),
+                listOf("發放日", "市場", "代號", "名稱", "現金股利", "扣稅／健保", "匯費", "實際入帳", "配股股數", "備註", "匯率"),
                 dividends.sortedBy { it.date }.map {
                     listOf(
                         date(it.date), text(it.market.label), text(it.symbol), text(it.name),
                         money(it.market, it.cashAmount), money(it.market, it.tax), money(it.market, it.fee),
                         money(it.market, it.netCash), shares(it.stockShares), text(it.note),
+                        opt(it.fxRate) { r -> fx(r) },
                     )
                 },
-                widths = listOf(12, 6, 10, 18, 12, 12, 8, 12, 10, 20),
+                widths = listOf(12, 6, 10, 18, 12, 12, 8, 12, 10, 20, 10),
             ),
             Sheet(
                 "已實現損益",

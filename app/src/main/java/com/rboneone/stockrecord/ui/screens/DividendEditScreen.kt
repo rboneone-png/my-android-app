@@ -82,6 +82,9 @@ fun DividendEditScreen(vm: AppViewModel, dividendId: Long, onDone: () -> Unit) {
     var showDatePicker by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
     var original by remember { mutableStateOf<Dividend?>(null) }
+    // 美股：發放日當時的美元兌台幣匯率；預設依發放日自動帶入，可自行修改（帳務管理用它換算台幣）
+    var fxText by rememberSaveable { mutableStateOf("") }
+    var fxManual by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(dividendId) {
         if (isNew) return@LaunchedEffect
@@ -92,8 +95,15 @@ fun DividendEditScreen(vm: AppViewModel, dividendId: Long, onDone: () -> Unit) {
             perShareText = d.perShare?.let { plainNumber(it) }.orEmpty()
             taxText = plainNumber(d.tax); feeText = plainNumber(d.fee)
             stockText = plainNumber(d.stockShares); note = d.note
+            fxText = d.fxRate?.let { plainNumber(it) }.orEmpty(); fxManual = d.fxRate != null
             loaded = true
         }
+    }
+
+    // 匯率自動帶入：今天（或之後）用目前匯率，過去的日期抓當日收盤匯率；抓不到就留空
+    LaunchedEffect(market, date, fxManual, loaded) {
+        if (market != Market.US || fxManual || !loaded) return@LaunchedEffect
+        fxText = vm.fxRateOn(date)?.let { plainNumber(Math.round(it * 10_000) / 10_000.0) }.orEmpty()
     }
 
     val nameHint = rememberStockNameLookup(vm, market, symbol, enabled = loaded && !nameManual) { name = it }
@@ -158,6 +168,7 @@ fun DividendEditScreen(vm: AppViewModel, dividendId: Long, onDone: () -> Unit) {
                 "${formatDate(date)} 當天沒有持有這檔股票，無法計算現金股利，請確認發放日與買賣紀錄"
             cashAmount <= 0 && stock <= 0 -> "請輸入每股股利或配股股數"
             tax + fee > cashAmount -> "扣款金額不能超過現金股利"
+            market == Market.US && fxText.isNotBlank() && (fxText.toAmountOrNull() ?: 0.0) <= 0 -> "匯率請輸入大於 0 的數字"
             else -> null
         }
         if (error != null) return
@@ -174,6 +185,7 @@ fun DividendEditScreen(vm: AppViewModel, dividendId: Long, onDone: () -> Unit) {
                 stockShares = stock,
                 note = note.trim(),
                 perShare = if (keepLegacyCash) null else perShare,
+                fxRate = if (market == Market.US) fxText.toAmountOrNull()?.takeIf { it > 0 } else null,
             )
         )
         onDone()
@@ -272,6 +284,18 @@ fun DividendEditScreen(vm: AppViewModel, dividendId: Long, onDone: () -> Unit) {
                 onResetAuto = if (taxManual) ({ taxManual = false }) else null,
                 modifier = Modifier.fillMaxWidth(),
             )
+            if (market == Market.US) {
+                NumberField(
+                    fxText, { fxText = it; fxManual = true; error = null }, "匯率（美元兌台幣）",
+                    supporting = when {
+                        fxManual -> "已手動輸入；帳務管理用這個匯率換算台幣"
+                        fxText.isEmpty() -> "抓不到當日匯率，可手動輸入；留空的話之後由 App 補上"
+                        else -> "依發放日自動帶入（今天為目前匯率，過去為當日收盤匯率）"
+                    },
+                    onResetAuto = if (fxManual) ({ fxManual = false }) else null,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
             NumberField(
                 feeText, { feeText = it },
                 "匯費 / 手續費",

@@ -103,6 +103,9 @@ object ExcelImporter {
         return if (market == Market.TW && s.length in 1..3 && s.all { it.isDigit() }) s.padStart(4, '0') else s
     }
 
+    /** 匯率欄：留空或看不懂就當作沒有（匯入後由 App 抓當時的歷史匯率補上） */
+    private fun fxCell(text: String): Double? = parseNumber(text)?.takeIf { it > 0 }
+
     // ---- 交易紀錄 ----
 
     private fun parseTrades(rows: List<List<String>>, settings: FeeSettings, errors: MutableList<String>): List<Trade> {
@@ -116,7 +119,7 @@ object ExcelImporter {
         val cDate = cols.find("日期"); val cMarket = cols.find("市場"); val cSymbol = cols.find("代號")
         val cName = cols.find("名稱"); val cType = cols.find("買賣"); val cShares = cols.find("股數")
         val cPrice = cols.find("成交價"); val cFee = cols.find("手續費"); val cTax = cols.find("交易稅")
-        val cTaxType = cols.find("稅別"); val cNote = cols.find("備註")
+        val cTaxType = cols.find("稅別"); val cNote = cols.find("備註"); val cFx = cols.find("匯率")
 
         val out = mutableListOf<Trade>()
         rows.drop(1).forEachIndexed { i, row ->
@@ -138,6 +141,7 @@ object ExcelImporter {
                 market = market, symbol = symbol, name = row.cell(cName).ifEmpty { symbol }, type = type,
                 date = date.toEpochDay(), shares = shares, price = price, fee = fee, tax = tax,
                 taxType = taxType, note = row.cell(cNote),
+                fxRate = if (market == Market.US) fxCell(row.cell(cFx)) else null,
             )
         }
         return out
@@ -159,6 +163,7 @@ object ExcelImporter {
         }
         val cName = cols.find("名稱"); val cCash = cols.find("現金股利"); val cTax = cols.find("扣稅／健保", "扣稅")
         val cFee = cols.find("匯費"); val cStock = cols.find("配股股數"); val cNote = cols.find("備註")
+        val cFx = cols.find("匯率")
 
         val out = mutableListOf<Dividend>()
         rows.drop(1).forEachIndexed { i, row ->
@@ -179,6 +184,7 @@ object ExcelImporter {
             out += Dividend(
                 market = market, symbol = symbol, name = row.cell(cName).ifEmpty { symbol },
                 date = date.toEpochDay(), cashAmount = cash, tax = tax, fee = fee, stockShares = stock, note = row.cell(cNote),
+                fxRate = if (market == Market.US) fxCell(row.cell(cFx)) else null,
             )
         }
         return out

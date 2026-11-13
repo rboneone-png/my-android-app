@@ -22,6 +22,8 @@ data class Dividend(
     val note: String = "",
     /** 每股股利（輸入值）；舊紀錄沒有，為 null。現金股利總額 = 每股股利 × 發放日當天持有股數 */
     val perShare: Double? = null,
+    /** 美股：發放日當時的美元兌台幣匯率；台股為 null。舊紀錄補上前也是 null */
+    val fxRate: Double? = null,
 ) {
     /** 實際入帳的現金 */
     val netCash: Double get() = cashAmount - tax - fee

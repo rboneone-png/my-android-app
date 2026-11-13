@@ -53,6 +53,40 @@ class ExcelImportTest {
     }
 
     @Test
+    fun roundTrip_keepsUsFxRate_andMissingStaysNull() {
+        val trades = listOf(
+            Trade(1, Market.US, "AAPL", "Apple", TradeType.BUY, d(2026, 2, 3), 2.0, 190.0, 0.0, 0.0, fxRate = 31.4567),
+            Trade(2, Market.US, "AAPL", "Apple", TradeType.BUY, d(2026, 2, 4), 1.0, 191.0, 0.0, 0.0),   // 還沒補匯率
+            Trade(3, Market.TW, "0050", "元大台灣50", TradeType.BUY, d(2026, 2, 5), 1000.0, 150.0, 20.0, 0.0, TaxType.ETF),
+        )
+        val dividends = listOf(
+            Dividend(1, Market.US, "AAPL", "Apple", d(2026, 2, 20), 10.0, 3.0, 0.0, 0.0, "", fxRate = 32.0),
+        )
+        val result = import(exportBytes(trades, dividends))
+        assertEquals(emptyList<String>(), result.errors)
+        assertEquals(31.4567, result.trades[0].fxRate!!, 1e-9)
+        assertNull(result.trades[1].fxRate)
+        assertNull(result.trades[2].fxRate)   // 台股沒有匯率
+        assertEquals(32.0, result.dividends[0].fxRate!!, 1e-9)
+    }
+
+    @Test
+    fun export_hasFxColumn_forUsOnly() {
+        val sheets = ExcelExporter.buildSheets(
+            listOf(
+                Trade(1, Market.TW, "0050", "x", TradeType.BUY, 1, 1000.0, 100.0, 1.0, 0.0),
+                Trade(2, Market.US, "AAPL", "y", TradeType.BUY, 2, 1.0, 100.0, 0.0, 0.0, fxRate = 31.5),
+            ),
+            emptyList(), null, emptyMap<Pair<Market, String>, AssetCategory>(), null,
+        )
+        val sheet = sheets.first { it.name == "交易紀錄" }
+        val col = sheet.header.indexOf("匯率")
+        assertTrue(col >= 0)
+        assertTrue(sheet.rows[0][col] is Cell.Empty)
+        assertEquals(31.5, (sheet.rows[1][col] as Cell.Number).value, 1e-9)
+    }
+
+    @Test
     fun export_hasTaxTypeColumn_forTwOnly() {
         val sheets = ExcelExporter.buildSheets(
             listOf(
@@ -62,9 +96,10 @@ class ExcelImportTest {
             emptyList(), null, emptyMap(), null,
         )
         val s = sheets.first { it.name == "交易紀錄" }
-        assertEquals("稅別", s.header.last())
-        assertEquals("ETF", (s.rows[0].last() as Cell.Text).value)
-        assertEquals("", (s.rows[1].last() as Cell.Text).value)
+        val col = s.header.indexOf("稅別")
+        assertTrue(col >= 0)
+        assertEquals("ETF", (s.rows[0][col] as Cell.Text).value)
+        assertEquals("", (s.rows[1][col] as Cell.Text).value)
     }
 
     // ---- 手寫的 Excel（共用字串、日期序號、數字代號）----

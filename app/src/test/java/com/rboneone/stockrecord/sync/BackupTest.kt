@@ -25,11 +25,13 @@ class BackupTest {
             exportedAt = 123,
             trades = listOf(
                 Trade(5, Market.TW, "2330", "台積電", TradeType.SELL, 20_000, 1000.0, 600.5, 239.0, 900.0, TaxType.DAY_TRADE, "備註"),
-                Trade(6, Market.US, "BRK.B", "Berkshire", TradeType.BUY, 20_001, 1.5, 500.25, 0.0, 0.0),
+                Trade(6, Market.US, "BRK.B", "Berkshire", TradeType.BUY, 20_001, 1.5, 500.25, 0.0, 0.0, fxRate = 31.4567),
+                Trade(12, Market.US, "VOO", "Vanguard", TradeType.BUY, 20_001, 1.0, 400.0, 0.0, 0.0),   // 舊紀錄還沒補匯率
             ),
             dividends = listOf(
                 Dividend(7, Market.TW, "0056", "元大高股息", 20_002, 25_000.0, 527.0, 10.0, 0.0, "", perShare = 0.5),
                 Dividend(8, Market.TW, "0050", "元大台灣50", 20_003, 10_000.0, 0.0, 0.0, 0.0, ""),   // 舊紀錄沒有每股股利
+                Dividend(13, Market.US, "VOO", "Vanguard", 20_004, 12.0, 3.6, 0.0, 0.0, "", fxRate = 32.1),
             ),
             fees = FeeSettings(0.3, 1.0, 2.5, 0.1),
             categories = listOf(

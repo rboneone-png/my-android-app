@@ -66,6 +66,7 @@ object Backup {
                     .put("id", it.id).put("market", it.market.name).put("symbol", it.symbol).put("name", it.name)
                     .put("type", it.type.name).put("date", it.date).put("shares", it.shares).put("price", it.price)
                     .put("fee", it.fee).put("tax", it.tax).put("taxType", it.taxType.name).put("note", it.note)
+                    .also { o -> it.fxRate?.let { r -> o.put("fxRate", r) } }
             )
         }
         val dividends = JSONArray()
@@ -76,6 +77,7 @@ object Backup {
                     .put("date", it.date).put("cashAmount", it.cashAmount).put("tax", it.tax).put("fee", it.fee)
                     .put("stockShares", it.stockShares).put("note", it.note)
                     .also { o -> it.perShare?.let { p -> o.put("perShare", p) } }
+                    .also { o -> it.fxRate?.let { r -> o.put("fxRate", r) } }
             )
         }
         val fees = JSONObject()
@@ -196,6 +198,7 @@ object Backup {
                     tax = o.getDouble("tax"),
                     taxType = TaxType.valueOf(o.getString("taxType")),
                     note = o.optString("note"),
+                    fxRate = if (o.has("fxRate") && !o.isNull("fxRate")) o.getDouble("fxRate") else null,
                 )
             }
         }
@@ -214,6 +217,7 @@ object Backup {
                     stockShares = o.getDouble("stockShares"),
                     note = o.optString("note"),
                     perShare = if (o.has("perShare") && !o.isNull("perShare")) o.getDouble("perShare") else null,
+                    fxRate = if (o.has("fxRate") && !o.isNull("fxRate")) o.getDouble("fxRate") else null,
                 )
             }
         } ?: emptyList()

@@ -92,6 +92,9 @@ fun TradeEditScreen(vm: AppViewModel, tradeId: Long, onDone: () -> Unit) {
     var showDatePicker by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
     var original by remember { mutableStateOf<Trade?>(null) }
+    // 美股：這筆交易當時的美元兌台幣匯率；預設依交易日期自動帶入，可自行修改（帳務管理用它換算台幣）
+    var fxText by rememberSaveable { mutableStateOf("") }
+    var fxManual by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(tradeId) {
         if (isNew) return@LaunchedEffect
@@ -102,6 +105,7 @@ fun TradeEditScreen(vm: AppViewModel, tradeId: Long, onDone: () -> Unit) {
             sharesText = plainNumber(t.shares); priceText = plainNumber(t.price)
             taxType = t.taxType; feeText = plainNumber(t.fee); taxText = plainNumber(t.tax)
             note = t.note
+            fxText = t.fxRate?.let { plainNumber(it) }.orEmpty(); fxManual = t.fxRate != null
             loaded = true
         }
     }
@@ -116,6 +120,12 @@ fun TradeEditScreen(vm: AppViewModel, tradeId: Long, onDone: () -> Unit) {
     }
 
     val nameHint = rememberStockNameLookup(vm, market, symbol, enabled = loaded && !nameManual) { name = it }
+
+    // 匯率自動帶入：今天用目前匯率，過去的日期抓當日收盤匯率；抓不到就留空
+    LaunchedEffect(market, date, fxManual, loaded) {
+        if (market != Market.US || fxManual || !loaded) return@LaunchedEffect
+        fxText = vm.fxRateOn(date)?.let { plainNumber(Math.round(it * 10_000) / 10_000.0) }.orEmpty()
+    }
 
     val shares = sharesText.toAmountOrNull()
     val price = priceText.toAmountOrNull()
@@ -154,6 +164,7 @@ fun TradeEditScreen(vm: AppViewModel, tradeId: Long, onDone: () -> Unit) {
             shares == null || shares <= 0 -> "請輸入正確的股數"
             price == null || price <= 0 -> "請輸入正確的價格"
             fee < 0 || tax < 0 -> "手續費和稅金不能是負數"
+            market == Market.US && fxText.isNotBlank() && (fxText.toAmountOrNull() ?: 0.0) <= 0 -> "匯率請輸入大於 0 的數字"
             shortageText != null -> shortageText
             else -> null
         }
@@ -173,6 +184,7 @@ fun TradeEditScreen(vm: AppViewModel, tradeId: Long, onDone: () -> Unit) {
                 tax = tax,
                 taxType = taxType,
                 note = note.trim(),
+                fxRate = if (market == Market.US) fxText.toAmountOrNull()?.takeIf { it > 0 } else null,
             )
         )
         onDone()
@@ -274,6 +286,18 @@ fun TradeEditScreen(vm: AppViewModel, tradeId: Long, onDone: () -> Unit) {
                 ChipRow(TaxType.entries, taxType, { it.label }) { taxType = it }
             }
 
+            if (market == Market.US) {
+                NumberField(
+                    fxText, { fxText = it; fxManual = true; error = null }, "匯率（美元兌台幣）",
+                    supporting = when {
+                        fxManual -> "已手動輸入；帳務管理用這個匯率換算台幣"
+                        fxText.isEmpty() -> "抓不到當日匯率，可手動輸入；留空的話之後由 App 補上"
+                        else -> "依交易日期自動帶入（今天為目前匯率，過去為當日收盤匯率）"
+                    },
+                    onResetAuto = if (fxManual) ({ fxManual = false }) else null,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
             NumberField(
                 feeText, { feeText = it; feeManual = true }, "手續費",
                 supporting = if (feeManual) null else autoFeeHint(market, settings.twDiscount),

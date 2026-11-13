@@ -140,7 +140,7 @@ fun AccountingScreen(
                             color = MaterialTheme.colorScheme.error,
                         )
                         account.usdTwd != null -> Text(
-                            "美股買賣以目前匯率 %.4f 換算成台幣（過去的美股買賣也用同一個匯率）".format(account.usdTwd),
+                            "美股買賣與股利以各筆交易當時的匯率換算成台幣；尚未補上匯率的舊紀錄暫用目前匯率 %.4f".format(account.usdTwd),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )

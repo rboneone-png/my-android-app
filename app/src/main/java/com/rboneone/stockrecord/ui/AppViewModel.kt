@@ -17,6 +17,9 @@ import com.rboneone.stockrecord.data.StockSplit
 import com.rboneone.stockrecord.data.LookupResult
 import com.rboneone.stockrecord.data.Market
 import com.rboneone.stockrecord.data.Quote
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
+import com.rboneone.stockrecord.network.YahooApi
 import com.rboneone.stockrecord.data.Pledge
 import com.rboneone.stockrecord.data.PriceAlert
 import com.rboneone.stockrecord.data.StockCategory
@@ -36,6 +39,7 @@ import com.rboneone.stockrecord.domain.MonthlyIncome
 import com.rboneone.stockrecord.export.ExcelExporter
 import com.rboneone.stockrecord.export.XlsxWriter
 import com.rboneone.stockrecord.domain.Bar
+import com.rboneone.stockrecord.domain.FxRates
 import com.rboneone.stockrecord.domain.DayReturn
 import com.rboneone.stockrecord.domain.LiveClose
 import com.rboneone.stockrecord.domain.FeeSettings
@@ -204,6 +208,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     init {
         viewModelScope.launch { applyDueSplits() }
+        // 舊紀錄（升級前、匯入的）補上當時的美元匯率
+        viewModelScope.launch { runCatching { backfillFxRates() } }
         val s = sync.value
         if (s.auto && s.autoFileUri != null) app.syncManager.schedule(userId, s.totalHours(), replace = false)
     }
@@ -669,6 +675,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }.getOrElse { "匯入失敗：${it.message}" }
             refreshQuotes(force = true, quiet = true)
+            runCatching { backfillFxRates() }
         }
     }
 
@@ -680,7 +687,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     suspend fun getTrade(id: Long): Trade? = tradeDao.get(id)
 
     fun saveTrade(trade: Trade) {
-        viewModelScope.launch { tradeDao.upsert(trade) }
+        viewModelScope.launch {
+            tradeDao.upsert(trade)
+            if (trade.market == Market.US && trade.fxRate == null) backfillFxRates()
+        }
     }
 
     fun deleteTrade(trade: Trade) {
@@ -690,7 +700,49 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     suspend fun getDividend(id: Long): Dividend? = dividendDao.get(id)
 
     fun saveDividend(dividend: Dividend) {
-        viewModelScope.launch { dividendDao.upsert(dividend) }
+        viewModelScope.launch {
+            dividendDao.upsert(dividend)
+            if (dividend.market == Market.US && dividend.fxRate == null) backfillFxRates()
+        }
+    }
+
+    // ---- 美股匯率：每筆交易／股利記下當時的美元兌台幣匯率 ----
+
+    private val fxCache = HashMap<Long, Double>()
+
+    /**
+     * 某一天的美元兌台幣匯率：今天（或之後）用目前匯率；過去的抓日線收盤價（遇到假日用前一個交易日）。
+     * 抓不到回傳 null（呼叫的人可以讓使用者手動輸入，或留空由 [backfillFxRates] 之後補上）。
+     */
+    suspend fun fxRateOn(date: Long): Double? {
+        if (date >= LocalDate.now().toEpochDay()) {
+            // 直接讀資料庫裡的匯率（畫面沒在收集 quotes 時 StateFlow 的值可能是空的）
+            return db.marketDao().getQuotes().firstOrNull { it.market == Market.US && it.symbol == Quote.USD_TWD }?.price
+        }
+        fxCache[date]?.let { return it }
+        val bars = YahooApi.history(Quote.USD_TWD, date - FxRates.LOOKBACK_DAYS, date) ?: return null
+        return FxRates.rateOn(bars, date)?.also { fxCache[date] = it }
+    }
+
+    /**
+     * 幫還沒有匯率的美股買賣與股利（舊版留下的、匯入的、當時抓不到匯率的）補上「當天」的歷史匯率。
+     * 一次只下載涵蓋所有缺漏日期的一段日線；抓不到的保持空白，帳務暫用目前匯率，下次再補。
+     */
+    suspend fun backfillFxRates() = withContext(Dispatchers.IO) {
+        val trades = tradeDao.getAll().filter { it.market == Market.US && it.fxRate == null }
+        val dividends = dividendDao.getAll().filter { it.market == Market.US && it.fxRate == null }
+        val dates = trades.map { it.date } + dividends.map { it.date }
+        if (dates.isEmpty()) return@withContext
+        val bars = YahooApi.history(Quote.USD_TWD, dates.min() - FxRates.LOOKBACK_DAYS, dates.max()) ?: return@withContext
+        trades.forEach { t ->
+            val rate = FxRates.rateOn(bars, t.date) ?: return@forEach
+            // 重新讀一次：補的這一瞬間使用者若剛改過，就不覆蓋
+            tradeDao.get(t.id)?.takeIf { it.fxRate == null }?.let { tradeDao.upsert(it.copy(fxRate = rate)) }
+        }
+        dividends.forEach { d ->
+            val rate = FxRates.rateOn(bars, d.date) ?: return@forEach
+            dividendDao.get(d.id)?.takeIf { it.fxRate == null }?.let { dividendDao.upsert(it.copy(fxRate = rate)) }
+        }
     }
 
     fun deleteDividend(dividend: Dividend) {

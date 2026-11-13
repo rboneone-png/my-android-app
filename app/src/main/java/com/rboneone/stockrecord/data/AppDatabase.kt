@@ -7,7 +7,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [Trade::class, StockInfo::class, Quote::class, Dividend::class, StockCategory::class, PriceAlert::class, Pledge::class, WatchItem::class, HighWatchItem::class, CashFlow::class, Loan::class, StockSplit::class],
-    version = 13,
+    version = 14,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -121,6 +121,14 @@ abstract class AppDatabase : RoomDatabase() {
         val MIGRATION_9_10 = object : Migration(9, 10) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE `dividends` ADD COLUMN `perShare` REAL")
+            }
+        }
+
+        /** v13 → v14：美股買賣與股利各自記住當時的匯率（舊紀錄為空，之後由 App 抓歷史匯率補上） */
+        val MIGRATION_13_14 = object : Migration(13, 14) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `trades` ADD COLUMN `fxRate` REAL")
+                db.execSQL("ALTER TABLE `dividends` ADD COLUMN `fxRate` REAL")
             }
         }
 

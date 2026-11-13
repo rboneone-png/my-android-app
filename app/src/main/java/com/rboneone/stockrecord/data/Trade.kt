@@ -18,6 +18,8 @@ data class Trade(
     val tax: Double,
     val taxType: TaxType = TaxType.STOCK,
     val note: String = "",
+    /** 美股：交易當時的美元兌台幣匯率（帳務管理換算台幣用）；台股為 null。舊紀錄補上前也是 null */
+    val fxRate: Double? = null,
 ) {
     val amount: Double get() = shares * price
 }

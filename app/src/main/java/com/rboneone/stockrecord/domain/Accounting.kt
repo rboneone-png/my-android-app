@@ -96,13 +96,14 @@ object Accounting {
         /** 一筆買賣換成台幣金額（各自四捨五入）；美股沒有匯率時略過 */
         fun twd(t: Trade): Long = when (t.market) {
             Market.TW -> round(t.amount)
-            Market.US -> if (rate != null) round(t.amount * rate) else { usMissing = true; 0L }
+            // 美股：用這筆交易當時記下的匯率；還沒補上的舊紀錄暫時用目前匯率
+            Market.US -> (t.fxRate?.takeIf { it > 0 } ?: rate)?.let { round(t.amount * it) } ?: run { usMissing = true; 0L }
         }
 
         /** 一筆股利實際入帳的現金換成台幣（各自四捨五入） */
         fun twd(d: Dividend): Long = when (d.market) {
             Market.TW -> round(d.netCash)
-            Market.US -> if (rate != null) round(d.netCash * rate) else { usMissing = true; 0L }
+            Market.US -> (d.fxRate?.takeIf { it > 0 } ?: rate)?.let { round(d.netCash * it) } ?: run { usMissing = true; 0L }
         }
         val dividendsUpToToday = dividends.filter { it.date <= date }.associateWith { twd(it) }
 

@@ -1,12 +1,12 @@
 {
   "formatVersion": 1,
   "database": {
-    "version": 13,
-    "identityHash": "b88a14d9922f336ba0b076f84a89eab1",
+    "version": 14,
+    "identityHash": "a3e6a382c955aad572ebb938174e9baa",
     "entities": [
       {
         "tableName": "trades",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `market` TEXT NOT NULL, `symbol` TEXT NOT NULL, `name` TEXT NOT NULL, `type` TEXT NOT NULL, `date` INTEGER NOT NULL, `shares` REAL NOT NULL, `price` REAL NOT NULL, `fee` REAL NOT NULL, `tax` REAL NOT NULL, `taxType` TEXT NOT NULL, `note` TEXT NOT NULL)",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `market` TEXT NOT NULL, `symbol` TEXT NOT NULL, `name` TEXT NOT NULL, `type` TEXT NOT NULL, `date` INTEGER NOT NULL, `shares` REAL NOT NULL, `price` REAL NOT NULL, `fee` REAL NOT NULL, `tax` REAL NOT NULL, `taxType` TEXT NOT NULL, `note` TEXT NOT NULL, `fxRate` REAL)",
         "fields": [
           {
             "fieldPath": "id",
@@ -79,6 +79,12 @@
             "columnName": "note",
             "affinity": "TEXT",
             "notNull": true
+          },
+          {
+            "fieldPath": "fxRate",
+            "columnName": "fxRate",
+            "affinity": "REAL",
+            "notNull": false
           }
         ],
         "primaryKey": {
@@ -188,7 +194,7 @@
       },
       {
         "tableName": "dividends",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `market` TEXT NOT NULL, `symbol` TEXT NOT NULL, `name` TEXT NOT NULL, `date` INTEGER NOT NULL, `cashAmount` REAL NOT NULL, `tax` REAL NOT NULL, `fee` REAL NOT NULL, `stockShares` REAL NOT NULL, `note` TEXT NOT NULL, `perShare` REAL)",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `market` TEXT NOT NULL, `symbol` TEXT NOT NULL, `name` TEXT NOT NULL, `date` INTEGER NOT NULL, `cashAmount` REAL NOT NULL, `tax` REAL NOT NULL, `fee` REAL NOT NULL, `stockShares` REAL NOT NULL, `note` TEXT NOT NULL, `perShare` REAL, `fxRate` REAL)",
         "fields": [
           {
             "fieldPath": "id",
@@ -253,6 +259,12 @@
           {
             "fieldPath": "perShare",
             "columnName": "perShare",
+            "affinity": "REAL",
+            "notNull": false
+          },
+          {
+            "fieldPath": "fxRate",
+            "columnName": "fxRate",
             "affinity": "REAL",
             "notNull": false
           }
@@ -719,7 +731,7 @@
     "views": [],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'b88a14d9922f336ba0b076f84a89eab1')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'a3e6a382c955aad572ebb938174e9baa')"
     ]
   }
 }
