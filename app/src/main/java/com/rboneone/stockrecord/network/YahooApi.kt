@@ -1,6 +1,7 @@
 package com.rboneone.stockrecord.network
 
 import com.rboneone.stockrecord.data.Market
+import com.rboneone.stockrecord.data.Quote
 import com.rboneone.stockrecord.domain.Bar
 import com.rboneone.stockrecord.domain.PeriodHigh
 import kotlinx.coroutines.Dispatchers
@@ -54,6 +55,17 @@ object YahooApi {
         val closes = Http.get(intraUrl)?.let { parseIntradayCloses(it) }.orEmpty()
         val filled = usable.mapNotNull { d -> closes[d]?.let { Bar(d, it) } }
         (bars + filled).sortedBy { it.date }
+    }
+
+    /**
+     * 美元兌台幣的日線匯率（收盤價），from / to 為 LocalDate.toEpochDay()。
+     * 匯率資料和股票不同：成交量永遠是 0（不能當休市日丟掉），日線時間點是倫敦時間的午夜
+     * （夏令時間是前一天 23:00 UTC），所以日期要另外換算，見 [parseHistory] 的 fx 參數。
+     */
+    suspend fun fxHistory(from: Long, to: Long): List<Bar>? = withContext(Dispatchers.IO) {
+        val url = CHART_URL + URLEncoder.encode(Quote.USD_TWD, "UTF-8") +
+            "?period1=${(from - 1) * 86_400}&period2=${(to + 2) * 86_400}&interval=1d"
+        Http.get(url)?.let { parseHistory(it, fx = true) }
     }
 
     /** 5 分鐘線最多只能查近 60 天 */
@@ -121,18 +133,20 @@ object YahooApi {
         )
     }
 
-    fun parseHistory(json: String): List<Bar>? {
+    fun parseHistory(json: String, fx: Boolean = false): List<Bar>? {
         val result = JSONObject(json).optJSONObject("chart")
             ?.optJSONArray("result")
             ?.optJSONObject(0) ?: return null
         // 用交易所當地時區換算日期
-        val offset = result.optJSONObject("meta")?.optLong("gmtoffset") ?: 0L
+        // 匯率（fx）：日線時間點是倫敦午夜（夏令 23:00 UTC、冬令 00:00 UTC），加 12 小時再取日期就是那一天
+        val offset = (result.optJSONObject("meta")?.optLong("gmtoffset") ?: 0L) + if (fx) 43_200L else 0L
         val timestamps = result.optJSONArray("timestamp") ?: return emptyList()
         val quote = result.optJSONObject("indicators")
             ?.optJSONArray("quote")
             ?.optJSONObject(0) ?: return emptyList()
         val closes = quote.optJSONArray("close") ?: return emptyList()
-        val volumes = quote.optJSONArray("volume")
+        // 匯率的成交量一律是 0，不能拿來判斷休市
+        val volumes = if (fx) null else quote.optJSONArray("volume")
         val bars = mutableListOf<Bar>()
         for (i in 0 until minOf(timestamps.length(), closes.length())) {
             if (closes.isNull(i)) continue
@@ -145,7 +159,7 @@ object YahooApi {
         val byDate = bars.associateBy { it.date }.toMutableMap()
         // Yahoo 有時最新一天的收盤價是 null（例如 ETF 收盤後），改用最新成交價補上
         val meta = result.optJSONObject("meta")
-        if (meta != null && !meta.isNull("regularMarketPrice") && meta.optLong("regularMarketTime") > 0) {
+        if (!fx && meta != null && !meta.isNull("regularMarketPrice") && meta.optLong("regularMarketTime") > 0) {
             val lastDate = Math.floorDiv(meta.getLong("regularMarketTime") + offset, 86_400L)
             val inRange = timestamps.length() > 0 &&
                 lastDate >= Math.floorDiv(timestamps.getLong(0) + offset, 86_400L)

@@ -164,4 +164,50 @@ class YahooHighTest {
     fun parseHigh_unknownSymbol() {
         org.junit.Assert.assertNull(YahooApi.parseHigh("""{"chart":{"result":null,"error":{"code":"Not Found"}}}"""))
     }
+
+    // 美元兌台幣日線（真實回應的縮減版）：成交量全是 0；夏令時間的日線時間點是前一天 23:00 UTC，冬令是當天 00:00 UTC
+    private val fxJson = """
+        {"chart":{"result":[{"meta":{"currency":"TWD","symbol":"TWD=X","regularMarketTime":1794789633,
+        "regularMarketPrice":32.869,"gmtoffset":0,"timezone":"GMT"},
+        "timestamp":[1759964400,1760050800,1762128000,1762214400],
+        "indicators":{"quote":[{"close":[30.525,30.583,31.2,null],"volume":[0,0,0,0]}]}}],"error":null}}
+    """.trimIndent()
+
+    @Test
+    fun parseHistory_fx_keepsZeroVolumeRows_andShiftsToTradingDate() {
+        val bars = YahooApi.parseHistory(fxJson, fx = true)!!
+        assertEquals(
+            listOf(
+                java.time.LocalDate.of(2025, 10, 9).toEpochDay() to 30.525,
+                java.time.LocalDate.of(2025, 10, 10).toEpochDay() to 30.583,
+                java.time.LocalDate.of(2025, 11, 3).toEpochDay() to 31.2,
+            ),
+            bars.map { it.date to it.close },
+        )
+    }
+
+    @Test
+    fun parseHistory_stock_stillDropsZeroVolumeRows() {
+        // 股票的成交量 0 是休市日補的資料，要略過（原本的行為不變）
+        val json = """
+            {"chart":{"result":[{"meta":{"gmtoffset":28800},"timestamp":[1762128000,1762214400],
+            "indicators":{"quote":[{"close":[100.0,101.0],"volume":[5000,0]}]}}],"error":null}}
+        """.trimIndent()
+        val bars = YahooApi.parseHistory(json)!!
+        assertEquals(1, bars.size)
+        assertEquals(100.0, bars[0].close, 0.0)
+        // 同一份資料當匯率解析就不會被丟掉
+        assertEquals(2, YahooApi.parseHistory(json, fx = true)!!.size)
+    }
+
+    @Test
+    fun fxBars_feedFxRates_forHistoricalDates() {
+        val bars = YahooApi.parseHistory(fxJson, fx = true)!!
+        val oct9 = java.time.LocalDate.of(2025, 10, 9).toEpochDay()
+        val oct11 = java.time.LocalDate.of(2025, 10, 11).toEpochDay()   // 週六：用前一個交易日（10/10）
+        val nov3 = java.time.LocalDate.of(2025, 11, 3).toEpochDay()
+        assertEquals(30.525, com.rboneone.stockrecord.domain.FxRates.rateOn(bars, oct9)!!, 1e-9)
+        assertEquals(30.583, com.rboneone.stockrecord.domain.FxRates.rateOn(bars, oct11)!!, 1e-9)
+        assertEquals(31.2, com.rboneone.stockrecord.domain.FxRates.rateOn(bars, nov3)!!, 1e-9)
+    }
 }

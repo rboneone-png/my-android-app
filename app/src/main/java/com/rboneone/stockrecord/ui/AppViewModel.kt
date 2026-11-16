@@ -720,7 +720,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             return db.marketDao().getQuotes().firstOrNull { it.market == Market.US && it.symbol == Quote.USD_TWD }?.price
         }
         fxCache[date]?.let { return it }
-        val bars = YahooApi.history(Quote.USD_TWD, date - FxRates.LOOKBACK_DAYS, date) ?: return null
+        val bars = YahooApi.fxHistory(date - FxRates.LOOKBACK_DAYS, date) ?: return null
         return FxRates.rateOn(bars, date)?.also { fxCache[date] = it }
     }
 
@@ -733,7 +733,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         val dividends = dividendDao.getAll().filter { it.market == Market.US && it.fxRate == null }
         val dates = trades.map { it.date } + dividends.map { it.date }
         if (dates.isEmpty()) return@withContext
-        val bars = YahooApi.history(Quote.USD_TWD, dates.min() - FxRates.LOOKBACK_DAYS, dates.max()) ?: return@withContext
+        val bars = YahooApi.fxHistory(dates.min() - FxRates.LOOKBACK_DAYS, dates.max()) ?: return@withContext
         trades.forEach { t ->
             val rate = FxRates.rateOn(bars, t.date) ?: return@forEach
             // 重新讀一次：補的這一瞬間使用者若剛改過，就不覆蓋
