@@ -347,12 +347,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     // ---- 股票分割與歷史價格 ----
 
-    /** 已確認 Yahoo 歷史價已經依這次分割調整過的分割（不會再變回沒調整，之後不用再查） */
+    /** 已確認 Yahoo 歷史價已經完整依這次分割調整過的分割（不會再變回沒調整，之後不用再查） */
     private val splitAdjustedConfirmed = HashSet<Long>()
 
     /**
-     * 已執行分割的股票，股數已經 × 倍數；但剛分割的前幾天，Yahoo 的歷史價可能還沒調整，
-     * 市值（股數 × 歷史價）會被放大成倍數。這裡檢查 Yahoo 調整了沒，沒有的話自己把恢復交易日之前的價格 ÷ 倍數。
+     * 已執行分割的股票，股數已經 × 倍數；但剛分割的前幾天，Yahoo 的歷史價常常只調整了一部分（甚至完全沒調整），
+     * 市值（股數 × 歷史價）會被放大成倍數。這裡找出 Yahoo 沒調整到的分界日，自己把那之前的價格 ÷ 倍數。
      */
     private suspend fun alignWithSplits(market: Market, bars: Map<String, List<Bar>>): Map<String, List<Bar>> {
         val applied = splitDao.getAll().filter { it.applied && it.market == market && it.symbol in bars }
@@ -360,27 +360,29 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         val out = bars.toMutableMap()
         for (sp in applied.sortedBy { it.resumeDate }) {
             if (sp.id in splitAdjustedConfirmed) continue
-            val adjusted = yahooAdjusted(sp)
-            if (adjusted == null) continue          // 查不到比較基準：照 Yahoo 的資料
-            if (adjusted) splitAdjustedConfirmed += sp.id
-            else out[sp.symbol] = SplitMath.alignBars(out.getValue(sp.symbol), sp, adjusted = false)
+            val ref = splitReferenceBars(sp) ?: continue        // 抓不到比較基準：照 Yahoo 的資料
+            val jump = SplitMath.unadjustedBefore(ref, sp)
+            if (jump != null) {
+                out[sp.symbol] = SplitMath.alignBars(out.getValue(sp.symbol), sp.ratio, jump)
+            } else if (ref.any { it.date < sp.resumeDate } && ref.any { it.date >= sp.resumeDate }) {
+                splitAdjustedConfirmed += sp.id                 // 前後都有價格、中間沒有斷層：Yahoo 已完整調整
+            }
         }
         return out
     }
 
-    /** true＝Yahoo 已調整、false＝還沒調整、null＝沒有足夠資料判斷（例如恢復交易日還沒有任何報價） */
-    private suspend fun yahooAdjusted(sp: StockSplit): Boolean? {
+    /** 恢復交易日前後的日線（用來找 Yahoo 歷史價的斷層）；抓不到回傳 null */
+    private suspend fun splitReferenceBars(sp: StockSplit): List<Bar>? {
         val today = LocalDate.now().toEpochDay()
         val bars = runCatching {
-            marketRepository.history(sp.market, sp.symbol, sp.resumeDate - 15, minOf(today, sp.resumeDate + 15), cacheable = false)
+            marketRepository.history(sp.market, sp.symbol, sp.resumeDate - 30, minOf(today, sp.resumeDate + 7), cacheable = false)
         }.getOrNull() ?: return null
-        val pre = bars.lastOrNull { it.date < sp.resumeDate } ?: return null
-        val post = bars.firstOrNull { it.date >= sp.resumeDate }?.close
-            ?: db.marketDao().getQuotes()
-                .firstOrNull { it.market == sp.market && it.symbol == sp.symbol && it.price > 0 && it.tradingDay() >= sp.resumeDate }
-                ?.price
-            ?: return null
-        return SplitMath.barsAdjusted(pre.close, post, sp.ratio)
+        if (bars.any { it.date >= sp.resumeDate }) return bars
+        // 恢復交易日當天還沒有日線：用即時報價補一筆
+        val quote = db.marketDao().getQuotes()
+            .firstOrNull { it.market == sp.market && it.symbol == sp.symbol && it.price > 0 && it.tradingDay() >= sp.resumeDate }
+            ?: return bars
+        return bars + Bar(quote.tradingDay(), quote.price)
     }
 
     // ---- 資產走勢 ----

@@ -61,19 +61,30 @@ object SplitMath {
     }
 
     /**
-     * Yahoo 的歷史收盤價是不是已經依這次分割調整過。
-     * 分割後 Yahoo 會把「恢復交易日之前」的歷史價往回調整（價格 ÷ 倍數），但剛分割的前幾天可能還沒調整。
-     * 比較恢復交易日前最後一天的收盤價 [preClose]（Yahoo 給的）和恢復交易日當天或之後的價格 [postPrice]：
-     * 已調整的話兩者相近（一般漲跌不會超過倍數的平方根倍）；沒調整的話前者大約是後者的「倍數」倍。
+     * 找出 Yahoo 歷史收盤價「沒調整到的部分」的分界日。
+     *
+     * 分割後 Yahoo 會把歷史價往回調整（價格 ÷ 倍數），但剛分割時常常只調整到一部分（例如只調整了最近幾天），
+     * 更早的日子還是分割前的原價——同一份資料裡價格水準會突然掉一個倍數。
+     * 這裡在 [bars]（含恢復交易日前後）裡找「連續兩個交易日收盤價相差約一個倍數」的地方，
+     * 回傳這次下跌的那一天（分界日）：分界日之前的價格還沒調整。找不到回傳 null（整份都已調整、或整份都沒有分割後的價格）。
+     * 一般交易日的漲跌幅不會超過倍數的平方根倍，所以不會把正常的大跌當成分界。
      */
-    fun barsAdjusted(preClose: Double, postPrice: Double, ratio: Int): Boolean =
-        preClose <= 0 || postPrice <= 0 || preClose / postPrice < Math.sqrt(ratio.toDouble())
+    fun unadjustedBefore(bars: List<Bar>, split: StockSplit): Long? {
+        val sorted = bars.sortedBy { it.date }
+        val threshold = Math.sqrt(split.ratio.toDouble())
+        var found: Long? = null
+        for (i in 1 until sorted.size) {
+            val a = sorted[i - 1]
+            val b = sorted[i]
+            if (b.close > 0 && a.close / b.close >= threshold) found = b.date
+        }
+        return found
+    }
 
     /**
      * 把歷史收盤價換成和（已執行分割的）交易紀錄同一個基準：
-     * 股數已經 × 倍數的話，恢復交易日之前的價格也要是 ÷ 倍數之後的價格，市值才算得對。
-     * Yahoo 已經調整過（[adjusted] 為 true）就不用動。
+     * 股數已經 × 倍數，所以還沒調整的價格（[unadjustedBefore] 之前的日子）也要 ÷ 倍數，市值才算得對。
      */
-    fun alignBars(bars: List<Bar>, split: StockSplit, adjusted: Boolean): List<Bar> =
-        if (adjusted) bars else bars.map { if (it.date < split.resumeDate) it.copy(close = it.close / split.ratio) else it }
+    fun alignBars(bars: List<Bar>, ratio: Int, unadjustedBefore: Long): List<Bar> =
+        bars.map { if (it.date < unadjustedBefore) it.copy(close = it.close / ratio) else it }
 }

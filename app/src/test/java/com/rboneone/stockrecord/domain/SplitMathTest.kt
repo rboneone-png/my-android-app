@@ -134,38 +134,59 @@ class SplitMathTest {
         assertNull(Portfolio.firstShortage(trades, emptyList(), Market.TW, "0050"))
     }
 
-    // ---- 歷史價格與分割的基準對齊（Yahoo 還沒調整歷史價時，月報酬不能被放大成倍數）----
+    // ---- 歷史價格與分割的基準對齊（Yahoo 沒調整完整時，月報酬不能被放大成倍數）----
+    // 1 分 5、恢復交易日 110。例（取自 00662 的真實走勢）：Yahoo 只調整了最近兩個交易日（105、106），之前（100、101）還是原價
+
+    private val partial = listOf(
+        Bar(100, 118.0), Bar(101, 113.35),            // 原價，沒調整
+        Bar(105, 22.88), Bar(106, 23.56),             // 已調整（÷5）
+        Bar(110, 23.11),                              // 分割後
+    )
 
     @Test
-    fun barsAdjusted_detectsRawVsAdjusted() {
-        // 1 分 5：分割前收 100；分割後第一天 20.4 → 歷史價沒調整（100 ÷ 20.4 ≈ 4.9）
-        assertEquals(false, SplitMath.barsAdjusted(100.0, 20.4, 5))
-        // Yahoo 已把分割前的價格調成 20 → 已調整
-        assertEquals(true, SplitMath.barsAdjusted(20.0, 20.4, 5))
-        // 一般漲跌（含大跌）不會被誤判
-        assertEquals(true, SplitMath.barsAdjusted(20.0, 15.0, 5))
-        assertEquals(true, SplitMath.barsAdjusted(0.0, 20.4, 5))
+    fun unadjustedBefore_partialAdjustment_findsTheDropDay() {
+        assertEquals(105L, SplitMath.unadjustedBefore(partial, split))
     }
 
     @Test
-    fun alignBars_dividesOnlyBeforeResume_whenNotAdjusted() {
-        val bars = listOf(Bar(108, 100.0), Bar(109, 102.0), Bar(110, 20.4), Bar(111, 20.6))
-        val aligned = SplitMath.alignBars(bars, split, adjusted = false)
-        assertEquals(listOf(20.0, 20.4, 20.4, 20.6), aligned.map { it.close })
-        assertEquals(bars, SplitMath.alignBars(bars, split, adjusted = true))
+    fun unadjustedBefore_notAdjustedAtAll_dropIsAtResume() {
+        val bars = listOf(Bar(100, 118.0), Bar(106, 117.8), Bar(110, 23.11))
+        assertEquals(110L, SplitMath.unadjustedBefore(bars, split))
     }
 
     @Test
-    fun dailyReturns_afterSplit_unadjustedBarsWouldInflateByRatio_alignedIsCorrect() {
-        // 分割前買 1,000 股 @100 → 分割後 5,000 股 @20
-        val t = SplitMath.adjustTrade(trade(105, 1000.0, 100.0).copy(fee = 0.0), split, true)
-        val rawBars = listOf(Bar(107, 100.0), Bar(108, 102.0), Bar(109, 101.0), Bar(110, 20.4))
-        val wrong = DailyReturns.compute(listOf(t), emptyList(), mapOf("0050" to rawBars), 108, 108)
-        val right = DailyReturns.compute(
-            listOf(t), emptyList(), mapOf("0050" to SplitMath.alignBars(rawBars, split, adjusted = false)), 108, 108,
-        )
-        // 真正的損益：5,000 股 × (20.4 − 20.0) = 2,000；沒對齊會變成 5 倍
-        assertEquals(2_000.0, right.single().pnl, 1e-6)
-        assertEquals(10_000.0, wrong.single().pnl, 1e-6)
+    fun unadjustedBefore_fullyAdjusted_isNull() {
+        val bars = listOf(Bar(100, 23.6), Bar(101, 22.67), Bar(105, 22.88), Bar(106, 23.56), Bar(110, 23.11))
+        assertNull(SplitMath.unadjustedBefore(bars, split))
+    }
+
+    @Test
+    fun unadjustedBefore_normalMovesAreNotMistakenForSplit() {
+        // 跌停（−10%）、大跌 30% 都遠小於 5 倍的平方根
+        val bars = listOf(Bar(100, 100.0), Bar(101, 90.0), Bar(102, 63.0), Bar(103, 66.0))
+        assertNull(SplitMath.unadjustedBefore(bars, split))
+    }
+
+    @Test
+    fun alignBars_dividesOnlyTheUnadjustedPart() {
+        val aligned = SplitMath.alignBars(partial, 5, 105)
+        assertEquals(listOf(23.6, 22.67, 22.88, 23.56, 23.11), aligned.map { Math.round(it.close * 100) / 100.0 })
+    }
+
+    @Test
+    fun dailyReturns_partialYahooAdjustment_buyDayIsCorrectAfterAlign() {
+        // 分割前（99）買 1,000 股 @118，105 又買 1,000 股 @114；兩筆都在恢復交易日（110）之前 → 股數 × 5、價格 ÷ 5
+        val t1 = SplitMath.adjustTrade(trade(99, 1000.0, 118.0).copy(fee = 0.0), split, true)
+        val t2 = SplitMath.adjustTrade(trade(105, 1000.0, 114.0).copy(fee = 0.0), split, true)
+        val trades = listOf(t1, t2)
+        val align = SplitMath.alignBars(partial, 5, SplitMath.unadjustedBefore(partial, split)!!)
+
+        val wrong = DailyReturns.compute(trades, emptyList(), mapOf("0050" to partial), 105, 105).single()
+        val right = DailyReturns.compute(trades, emptyList(), mapOf("0050" to align), 105, 105).single()
+
+        // 真正的損益：前一天（101）5,000 股 × 22.67 = 113,350；105 持有 10,000 股 × 22.88 = 228,800；買進成本 5,000 × 22.8 = 114,000
+        assertEquals(228_800.0 - 113_350.0 - 114_000.0, right.pnl, 1e-6)
+        // 沒對齊時，前一天的市值被放大成 5 倍，買進當天損益嚴重失真
+        assertEquals(228_800.0 - 566_750.0 - 114_000.0, wrong.pnl, 1e-6)
     }
 }
