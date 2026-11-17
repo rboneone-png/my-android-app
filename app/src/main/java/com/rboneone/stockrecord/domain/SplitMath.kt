@@ -89,16 +89,19 @@ object SplitMath {
         bars.map { if (it.date < unadjustedBefore) it.copy(close = it.close / ratio) else it }
 
     /**
-     * 已執行的分割，買賣紀錄看起來是不是「沒有調整到」（例如還原備份後）：
-     * 恢復交易日之前的買賣，平均價格還在分割前的水準——是現價 [postPrice]（分割後）的將近一個倍數（超過倍數的平方根倍）。
+     * 已執行的分割，找出「沒有調整到」的買賣（還原備份、補登分割前的買賣之後常見）：
+     * 把每筆恢復交易日之前的買賣價格，和「同一天的市場收盤價」比——[bars] 要是已經和分割後對齊的價格（見 [alignBars]）。
+     * 買賣價格不會離當天收盤價太遠，所以：價格接近當天收盤價 → 已調整；價格是當天收盤價的將近一個倍數
+     * （超過倍數的平方根倍）→ 還是分割前的原價，沒有調整到。找不到那天（或之前）的收盤價的買賣，不判斷。
      */
-    fun looksUnadjusted(trades: List<Trade>, split: StockSplit, postPrice: Double?): Boolean {
-        if (postPrice == null || postPrice <= 0) return false
-        val before = trades.filter { it.market == split.market && it.symbol == split.symbol && it.date < split.resumeDate }
-        val shares = before.sumOf { it.shares }
-        if (shares <= 0) return false
-        val avg = before.sumOf { it.shares * it.price } / shares
-        return avg / postPrice >= Math.sqrt(split.ratio.toDouble())
+    fun unadjustedTrades(trades: List<Trade>, bars: List<Bar>, split: StockSplit): List<Trade> {
+        val sorted = bars.sortedBy { it.date }
+        val threshold = Math.sqrt(split.ratio.toDouble())
+        return trades.filter { t ->
+            if (t.market != split.market || t.symbol != split.symbol || t.date >= split.resumeDate || t.price <= 0) return@filter false
+            val ref = sorted.lastOrNull { it.date <= t.date }?.close?.takeIf { it > 0 } ?: return@filter false
+            t.price / ref >= threshold
+        }
     }
 
     /** 這檔股票在這個恢復交易日是不是已經有分割設定（再設定一次會把股數重複調整） */

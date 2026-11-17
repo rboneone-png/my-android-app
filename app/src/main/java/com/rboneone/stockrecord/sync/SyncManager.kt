@@ -4,6 +4,7 @@ import android.net.Uri
 import androidx.room.withTransaction
 import com.rboneone.stockrecord.domain.SplitMath
 import com.rboneone.stockrecord.data.SplitApplier
+import com.rboneone.stockrecord.data.SplitRepair
 import androidx.work.Constraints
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingPeriodicWorkPolicy
@@ -133,7 +134,10 @@ class SyncManager(private val app: StockApp) {
             db.stockSplitDao().insertAll(SplitMath.splitsToCarryOver(deviceSplits, data.splits))
         }
         // 還原的買賣若是分割前的資料，立刻依到期的分割調整，不用等下次更新報價
-        SplitApplier.applyDue(db, java.time.LocalDate.now().toEpochDay())
+        val today = java.time.LocalDate.now().toEpochDay()
+        SplitApplier.applyDue(db, today)
+        // 備份裡的買賣若沒有跟著分割調整（分割紀錄與買賣對不上），自動修復；沒網路時略過，之後打開 App 會再檢查
+        runCatching { SplitRepair.run(db, today) }
         app.settings(userId).update(data.fees)
         app.settings(userId).setCash(data.cash)
         app.settings(userId).setClecLivingCost(data.clecLivingCost)

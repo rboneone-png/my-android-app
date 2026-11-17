@@ -38,7 +38,6 @@ import com.rboneone.stockrecord.data.StockSplit
 import com.rboneone.stockrecord.domain.SplitMath
 import com.rboneone.stockrecord.ui.AppViewModel
 import com.rboneone.stockrecord.ui.formatDate
-import com.rboneone.stockrecord.ui.formatPrice
 import com.rboneone.stockrecord.ui.formatShares
 import java.time.LocalDate
 
@@ -57,8 +56,6 @@ fun SplitEditScreen(
 ) {
     val holdings by vm.holdings.collectAsStateWithLifecycle()
     val allSplits by vm.splits.collectAsStateWithLifecycle()
-    val allTrades by vm.trades.collectAsStateWithLifecycle()
-    val allQuotes by vm.quotes.collectAsStateWithLifecycle()
     val isNew = splitId == 0L
     val today = LocalDate.now().toEpochDay()
 
@@ -72,7 +69,6 @@ fun SplitEditScreen(
     var original by remember { mutableStateOf<StockSplit?>(null) }
     var showError by remember { mutableStateOf(false) }
     var confirmUndo by remember { mutableStateOf(false) }
-    var confirmReapply by remember { mutableStateOf(false) }
 
     LaunchedEffect(splitId) {
         if (isNew) return@LaunchedEffect
@@ -134,22 +130,6 @@ fun SplitEditScreen(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                // 已執行，但買賣還是分割前的股數與價格（例如還原備份之後）：提示並提供重新執行
-                val suspect = original?.let { SplitMath.looksUnadjusted(allTrades, it, allQuotes[market to symbol]?.price) } == true
-                if (suspect) {
-                    Text(
-                        "偵測到這檔股票分割前的買賣價格仍是分割前的水準（現價 ${allQuotes[market to symbol]?.price?.let { formatPrice(it) }}），" +
-                            "買賣可能沒有調整到。若持股總覽的股數與成本均都還是分割前的數字，請按下面的「重新執行調整」。",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.error,
-                    )
-                }
-                OutlinedButton(onClick = { confirmReapply = true }, modifier = Modifier.fillMaxWidth()) { Text("重新執行調整") }
-                Text(
-                    "只有在「已執行」、但持股總覽的股數與成本均仍是分割前的數字時才需要（例如還原備份之後）。",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
                 OutlinedButton(onClick = { confirmUndo = true }, modifier = Modifier.fillMaxWidth()) { Text("還原這次分割") }
             } else {
                 // 暫停交易日、恢復交易日：下拉選擇日期
@@ -206,27 +186,6 @@ fun SplitEditScreen(
                 ) { Text("儲存") }
             }
         }
-    }
-
-    if (confirmReapply) {
-        AlertDialog(
-            onDismissRequest = { confirmReapply = false },
-            title = { Text("重新執行這次分割？") },
-            text = {
-                Text(
-                    "買賣、股利、質押股數與通知價格會再調整一次（股數 × ${original?.ratio}、每股價格 ÷ ${original?.ratio}）。\n\n" +
-                        "請先確認持股總覽裡這檔股票的股數與成本均「還是分割前的數字」。如果已經是分割後的，按了會重複調整，變成錯誤！",
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    confirmReapply = false
-                    original?.let { vm.reapplySplit(it) }
-                    onDone()
-                }) { Text("重新執行", color = MaterialTheme.colorScheme.error) }
-            },
-            dismissButton = { TextButton(onClick = { confirmReapply = false }) { Text("取消") } },
-        )
     }
 
     if (confirmUndo) {

@@ -13,6 +13,7 @@ import com.rboneone.stockrecord.data.CashFlow
 import com.rboneone.stockrecord.data.Dividend
 import com.rboneone.stockrecord.data.Loan
 import com.rboneone.stockrecord.data.SplitApplier
+import com.rboneone.stockrecord.data.SplitRepair
 import com.rboneone.stockrecord.data.StockSplit
 import com.rboneone.stockrecord.data.LookupResult
 import com.rboneone.stockrecord.data.Market
@@ -614,6 +615,13 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     /** 到了恢復交易日的分割，自動調整股數與價格 */
     private suspend fun applyDueSplits() {
         runCatching { SplitApplier.applyDue(db, LocalDate.now().toEpochDay()) }
+        // 已執行的分割若買賣還是分割前的數字（例如還原備份之後），自動修復
+        repairSplitData()
+    }
+
+    /** 自動修復「分割已執行、但買賣沒調整到」；需要網路抓歷史價，抓不到就下次再檢查 */
+    private suspend fun repairSplitData() {
+        runCatching { SplitRepair.run(db, LocalDate.now().toEpochDay()) }
     }
 
     /** 儲存分割設定；恢復交易日已經到了的話，馬上就會調整 */
@@ -622,11 +630,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             splitDao.upsert(split.copy(applied = false))
             applyDueSplits()
         }
-    }
-
-    /** 重新執行已執行的分割（資料還是分割前的股數與價格時使用） */
-    fun reapplySplit(split: StockSplit) {
-        viewModelScope.launch { SplitApplier.reapply(db, split) }
     }
 
     /** 刪除尚未執行的分割，或還原已執行的分割 */
@@ -727,6 +730,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             }.getOrElse { "匯入失敗：${it.message}" }
             refreshQuotes(force = true, quiet = true)
             runCatching { backfillFxRates() }
+            repairSplitData()
         }
     }
 
@@ -741,6 +745,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             tradeDao.upsert(trade)
             if (trade.market == Market.US && trade.fxRate == null) backfillFxRates()
+            // 補登分割前的買賣（用原股數與原價格）時，自動調整成分割後
+            repairSplitData()
         }
     }
 

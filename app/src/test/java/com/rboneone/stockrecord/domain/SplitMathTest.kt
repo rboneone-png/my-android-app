@@ -230,25 +230,43 @@ class SplitMathTest {
         assertEquals(false, SplitMath.isDuplicate(existing, sp(0, resume = 200)))
     }
 
-    // ---- 偵測「已執行但買賣沒調整到」----
+    // ---- 自動找出「已執行但買賣沒調整到」的買賣（和同一天的收盤價比）----
+
+    // 對齊後的收盤價（分割後的水準，約 23）
+    private val alignedBars = listOf(Bar(95, 23.6), Bar(100, 23.4), Bar(105, 22.9), Bar(106, 23.5), Bar(110, 23.1))
 
     @Test
-    fun looksUnadjusted_detectsRawTrades() {
-        // 分割前買進價約 109.5（沒調整），分割後現價 23.1（1 分 5）→ 沒調整到
-        val raw = listOf(trade(100, 3000.0, 109.0), trade(105, 1000.0, 111.0))
-        assertEquals(true, SplitMath.looksUnadjusted(raw, split, 23.1))
-        // 已調整：股數 × 5、價格 ÷ 5 → 價格在現價附近
-        val adjusted = raw.map { SplitMath.adjustTrade(it, split, true) }
-        assertEquals(false, SplitMath.looksUnadjusted(adjusted, split, 23.1))
+    fun unadjustedTrades_rawPrices_areFound() {
+        val raw = listOf(trade(100, 3000.0, 117.0), trade(105, 1000.0, 114.4))
+        assertEquals(raw, SplitMath.unadjustedTrades(raw, alignedBars, split))
     }
 
     @Test
-    fun looksUnadjusted_noDataOrNoPrice_isFalse() {
-        assertEquals(false, SplitMath.looksUnadjusted(emptyList(), split, 23.1))
-        assertEquals(false, SplitMath.looksUnadjusted(listOf(trade(100, 1000.0, 109.0)), split, null))
-        // 恢復交易日之後的買賣不算
-        assertEquals(false, SplitMath.looksUnadjusted(listOf(trade(120, 1000.0, 109.0)), split, 23.1))
-        // 別檔股票不算
-        assertEquals(false, SplitMath.looksUnadjusted(listOf(trade(100, 1000.0, 109.0, symbol = "0056")), split, 23.1))
+    fun unadjustedTrades_adjustedPrices_areLeftAlone() {
+        val adjusted = listOf(trade(100, 3000.0, 117.0), trade(105, 1000.0, 114.4)).map { SplitMath.adjustTrade(it, split, true) }
+        assertEquals(emptyList<Trade>(), SplitMath.unadjustedTrades(adjusted, alignedBars, split))
+    }
+
+    @Test
+    fun unadjustedTrades_mixed_onlyTheRawOnes() {
+        val rawTrade = trade(100, 3000.0, 117.0)
+        val adjustedTrade = SplitMath.adjustTrade(trade(105, 1000.0, 114.4), split, true)
+        assertEquals(listOf(rawTrade), SplitMath.unadjustedTrades(listOf(rawTrade, adjustedTrade), alignedBars, split))
+    }
+
+    @Test
+    fun unadjustedTrades_stockMovedALot_butAdjustedPricesNotMistaken() {
+        // 股價比買進時跌了一半（調整後買進價 47 vs 當天收盤 23 的情況不會發生；這裡用「同一天」比較）：
+        // 買進價 24（調整後）、當天收盤 23.4 → 接近 → 已調整
+        val t = trade(100, 5000.0, 24.0)
+        assertEquals(emptyList<Trade>(), SplitMath.unadjustedTrades(listOf(t), alignedBars, split))
+    }
+
+    @Test
+    fun unadjustedTrades_ignoresNoBarOtherStockAndAfterResume() {
+        val noBar = trade(90, 1000.0, 117.0)                      // 比最早的收盤價還早：找不到那天，不判斷
+        val other = trade(100, 1000.0, 117.0, symbol = "0056")    // 別檔股票
+        val after = trade(120, 1000.0, 117.0)                     // 恢復交易日之後
+        assertEquals(emptyList<Trade>(), SplitMath.unadjustedTrades(listOf(noBar, other, after), alignedBars, split))
     }
 }
