@@ -59,4 +59,21 @@ object SplitMath {
         if (!perShare) return a
         return if (forward) a.copy(threshold = a.threshold / split.ratio) else a.copy(threshold = a.threshold * split.ratio)
     }
+
+    /**
+     * Yahoo 的歷史收盤價是不是已經依這次分割調整過。
+     * 分割後 Yahoo 會把「恢復交易日之前」的歷史價往回調整（價格 ÷ 倍數），但剛分割的前幾天可能還沒調整。
+     * 比較恢復交易日前最後一天的收盤價 [preClose]（Yahoo 給的）和恢復交易日當天或之後的價格 [postPrice]：
+     * 已調整的話兩者相近（一般漲跌不會超過倍數的平方根倍）；沒調整的話前者大約是後者的「倍數」倍。
+     */
+    fun barsAdjusted(preClose: Double, postPrice: Double, ratio: Int): Boolean =
+        preClose <= 0 || postPrice <= 0 || preClose / postPrice < Math.sqrt(ratio.toDouble())
+
+    /**
+     * 把歷史收盤價換成和（已執行分割的）交易紀錄同一個基準：
+     * 股數已經 × 倍數的話，恢復交易日之前的價格也要是 ÷ 倍數之後的價格，市值才算得對。
+     * Yahoo 已經調整過（[adjusted] 為 true）就不用動。
+     */
+    fun alignBars(bars: List<Bar>, split: StockSplit, adjusted: Boolean): List<Bar> =
+        if (adjusted) bars else bars.map { if (it.date < split.resumeDate) it.copy(close = it.close / split.ratio) else it }
 }

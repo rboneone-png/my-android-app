@@ -40,6 +40,7 @@ import com.rboneone.stockrecord.export.ExcelExporter
 import com.rboneone.stockrecord.export.XlsxWriter
 import com.rboneone.stockrecord.domain.Bar
 import com.rboneone.stockrecord.domain.FxRates
+import com.rboneone.stockrecord.domain.SplitMath
 import com.rboneone.stockrecord.domain.DayReturn
 import com.rboneone.stockrecord.domain.LiveClose
 import com.rboneone.stockrecord.domain.FeeSettings
@@ -323,9 +324,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     t.any { it.date in windowStart..to } || d.any { it.date in windowStart..to }
             }
             val cacheable = month.atEndOfMonth().toEpochDay() < today
-            val bars = symbols.map { s ->
+            val rawBars = symbols.map { s ->
                 async { s to runCatching { marketRepository.history(market, s, windowStart, to, cacheable) }.getOrNull() }
             }.awaitAll()
+            // 做過股票分割的股票：歷史價換成和（已調整的）股數同一個基準
+            val bars = alignWithSplits(market, rawBars.mapNotNull { (s, b) -> b?.let { s to it } }.toMap())
+                .let { aligned -> rawBars.map { (s, b) -> s to (b?.let { aligned[s] }) } }
             val failed = bars.filter { it.second == null }.map { it.first }
             monthCtx = MonthCtx(
                 market = market,
@@ -339,6 +343,44 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             )
             publishMonth()
         }
+    }
+
+    // ---- 股票分割與歷史價格 ----
+
+    /** 已確認 Yahoo 歷史價已經依這次分割調整過的分割（不會再變回沒調整，之後不用再查） */
+    private val splitAdjustedConfirmed = HashSet<Long>()
+
+    /**
+     * 已執行分割的股票，股數已經 × 倍數；但剛分割的前幾天，Yahoo 的歷史價可能還沒調整，
+     * 市值（股數 × 歷史價）會被放大成倍數。這裡檢查 Yahoo 調整了沒，沒有的話自己把恢復交易日之前的價格 ÷ 倍數。
+     */
+    private suspend fun alignWithSplits(market: Market, bars: Map<String, List<Bar>>): Map<String, List<Bar>> {
+        val applied = splitDao.getAll().filter { it.applied && it.market == market && it.symbol in bars }
+        if (applied.isEmpty()) return bars
+        val out = bars.toMutableMap()
+        for (sp in applied.sortedBy { it.resumeDate }) {
+            if (sp.id in splitAdjustedConfirmed) continue
+            val adjusted = yahooAdjusted(sp)
+            if (adjusted == null) continue          // 查不到比較基準：照 Yahoo 的資料
+            if (adjusted) splitAdjustedConfirmed += sp.id
+            else out[sp.symbol] = SplitMath.alignBars(out.getValue(sp.symbol), sp, adjusted = false)
+        }
+        return out
+    }
+
+    /** true＝Yahoo 已調整、false＝還沒調整、null＝沒有足夠資料判斷（例如恢復交易日還沒有任何報價） */
+    private suspend fun yahooAdjusted(sp: StockSplit): Boolean? {
+        val today = LocalDate.now().toEpochDay()
+        val bars = runCatching {
+            marketRepository.history(sp.market, sp.symbol, sp.resumeDate - 15, minOf(today, sp.resumeDate + 15), cacheable = false)
+        }.getOrNull() ?: return null
+        val pre = bars.lastOrNull { it.date < sp.resumeDate } ?: return null
+        val post = bars.firstOrNull { it.date >= sp.resumeDate }?.close
+            ?: db.marketDao().getQuotes()
+                .firstOrNull { it.market == sp.market && it.symbol == sp.symbol && it.price > 0 && it.tradingDay() >= sp.resumeDate }
+                ?.price
+            ?: return null
+        return SplitMath.barsAdjusted(pre.close, post, sp.ratio)
     }
 
     // ---- 資產走勢 ----
@@ -368,12 +410,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 val d = dividends.filter { it.symbol == sym }
                 monthEnds.any { Portfolio.sharesOn(t, d, it) > 1e-9 }
             }
-            val bars = symbols.map { sym ->
+            val rawBars = symbols.map { sym ->
                 async {
                     val from = trades.filter { it.symbol == sym }.minOf { it.date } - 15
                     sym to runCatching { marketRepository.history(market, sym, from, today, cacheable = false) }.getOrNull()
                 }
             }.awaitAll()
+            val bars = alignWithSplits(market, rawBars.mapNotNull { (s, b) -> b?.let { s to it } }.toMap())
+                .let { aligned -> rawBars.map { (s, b) -> s to (b?.let { aligned[s] }) } }
             val failed = bars.filter { it.second == null }.map { it.first }
             val latest = db.marketDao().getQuotes()
                 .filter { it.market == market && it.price > 0 }
