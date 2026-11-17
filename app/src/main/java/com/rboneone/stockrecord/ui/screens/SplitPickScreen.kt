@@ -55,6 +55,13 @@ fun SplitPickScreen(
             item(key = "h1") {
                 Text("選擇要分割的庫存股", style = MaterialTheme.typography.titleMedium)
             }
+            item(key = "h1-hint") {
+                Text(
+                    "這裡列出所有庫存股。已經設定過分割的股票會標示分割資訊；同一檔、同一個恢復交易日不能重複設定。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
             if (open.isEmpty()) {
                 item(key = "empty") { Text("目前沒有庫存股", color = MaterialTheme.colorScheme.onSurfaceVariant) }
             }
@@ -68,6 +75,14 @@ fun SplitPickScreen(
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
+                            // 這檔已經設定過分割：提醒一下，避免重複設定
+                            splits.filter { it.market == h.market && it.symbol == h.symbol }.forEach { s ->
+                                Text(
+                                    "已設定分割：1 分 ${s.ratio}・恢復 ${formatDate(s.resumeDate)}（${if (s.applied) "已執行" else "待執行"}）",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.primary,
+                                )
+                            }
                         }
                         Text("${formatShares(h.shares)} 股", style = MaterialTheme.typography.titleSmall)
                     }

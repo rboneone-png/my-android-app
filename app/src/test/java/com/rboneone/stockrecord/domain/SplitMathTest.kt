@@ -217,4 +217,16 @@ class SplitMathTest {
         val backup = listOf(sp(9, symbol = "0056"))
         assertEquals(listOf("0050", "2330"), SplitMath.splitsToCarryOver(device, backup).map { it.symbol })
     }
+
+    @Test
+    fun isDuplicate_sameStockSameResumeDate() {
+        val existing = listOf(sp(1, applied = true))
+        // 同一檔、同一個恢復交易日：重複（暫停日、倍數不同也算）
+        assertEquals(true, SplitMath.isDuplicate(existing, sp(0, suspend = 90, ratio = 10)))
+        // 編輯自己這一筆不算重複
+        assertEquals(false, SplitMath.isDuplicate(existing, sp(1)))
+        // 不同股票、不同恢復交易日都不算
+        assertEquals(false, SplitMath.isDuplicate(existing, sp(0, symbol = "0056")))
+        assertEquals(false, SplitMath.isDuplicate(existing, sp(0, resume = 200)))
+    }
 }

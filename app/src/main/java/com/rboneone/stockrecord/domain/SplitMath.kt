@@ -88,6 +88,10 @@ object SplitMath {
     fun alignBars(bars: List<Bar>, ratio: Int, unadjustedBefore: Long): List<Bar> =
         bars.map { if (it.date < unadjustedBefore) it.copy(close = it.close / ratio) else it }
 
+    /** 這檔股票在這個恢復交易日是不是已經有分割設定（再設定一次會把股數重複調整） */
+    fun isDuplicate(existing: List<StockSplit>, candidate: StockSplit): Boolean =
+        existing.any { it.id != candidate.id && it.market == candidate.market && it.symbol == candidate.symbol && it.resumeDate == candidate.resumeDate }
+
     /** 同一次分割（暫停日可能不同，但市場、代號、恢復交易日、倍數一樣就當作同一筆） */
     private fun sameSplit(a: StockSplit, b: StockSplit) =
         a.market == b.market && a.symbol == b.symbol && a.resumeDate == b.resumeDate && a.ratio == b.ratio

@@ -55,6 +55,7 @@ fun SplitEditScreen(
     onDone: () -> Unit,
 ) {
     val holdings by vm.holdings.collectAsStateWithLifecycle()
+    val allSplits by vm.splits.collectAsStateWithLifecycle()
     val isNew = splitId == 0L
     val today = LocalDate.now().toEpochDay()
 
@@ -84,9 +85,16 @@ fun SplitEditScreen(
     val displayName = name.ifBlank { holding?.name ?: symbol }
     val applied = original?.applied == true
     val ratio = ratioText.trim().toIntOrNull()
-    val error = SplitMath.validate(suspendDate, resumeDate, ratio)
+    // 同一檔股票、同一個恢復交易日已經有分割設定：不能再設定一次，否則股數會被重複調整
+    val duplicate = SplitMath.isDuplicate(
+        allSplits,
+        StockSplit(splitId, market, symbol, "", suspendDate, resumeDate, ratio ?: 0),
+    )
+    val error = if (duplicate) "這檔股票在 ${formatDate(resumeDate)} 已經有分割設定了，不能重複設定（會把股數重複調整）"
+    else SplitMath.validate(suspendDate, resumeDate, ratio)
     // 日期設定錯誤馬上提示；每股拆分在按儲存、或已經輸入過之後才提示
     val shownError = when {
+        duplicate -> error
         suspendDate >= resumeDate -> error
         showError || ratioText.isNotEmpty() -> error
         else -> null
