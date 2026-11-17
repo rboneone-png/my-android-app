@@ -18,6 +18,18 @@ object SplitApplier {
         db.stockSplitDao().delete(split)
     }
 
+    /**
+     * 重新執行一筆「已執行」的分割：資料明明標示已執行，買賣卻還是分割前的股數與價格時使用（例如還原備份之後）。
+     * 先把狀態改回未執行，再調整一次。資料若本來就是分割後的，會被重複調整，所以要由使用者確認。
+     */
+    suspend fun reapply(db: AppDatabase, split: StockSplit) {
+        db.withTransaction {
+            val current = db.stockSplitDao().get(split.id) ?: return@withTransaction
+            db.stockSplitDao().upsert(current.copy(applied = false))
+        }
+        adjust(db, split.copy(applied = false), forward = true)
+    }
+
     private suspend fun adjust(db: AppDatabase, split: StockSplit, forward: Boolean) {
         db.withTransaction {
             // 在交易裡再確認一次狀態：同時有兩處（畫面與背景）檢查到期時，不會調整兩次

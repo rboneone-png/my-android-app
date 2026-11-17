@@ -229,4 +229,26 @@ class SplitMathTest {
         assertEquals(false, SplitMath.isDuplicate(existing, sp(0, symbol = "0056")))
         assertEquals(false, SplitMath.isDuplicate(existing, sp(0, resume = 200)))
     }
+
+    // ---- 偵測「已執行但買賣沒調整到」----
+
+    @Test
+    fun looksUnadjusted_detectsRawTrades() {
+        // 分割前買進價約 109.5（沒調整），分割後現價 23.1（1 分 5）→ 沒調整到
+        val raw = listOf(trade(100, 3000.0, 109.0), trade(105, 1000.0, 111.0))
+        assertEquals(true, SplitMath.looksUnadjusted(raw, split, 23.1))
+        // 已調整：股數 × 5、價格 ÷ 5 → 價格在現價附近
+        val adjusted = raw.map { SplitMath.adjustTrade(it, split, true) }
+        assertEquals(false, SplitMath.looksUnadjusted(adjusted, split, 23.1))
+    }
+
+    @Test
+    fun looksUnadjusted_noDataOrNoPrice_isFalse() {
+        assertEquals(false, SplitMath.looksUnadjusted(emptyList(), split, 23.1))
+        assertEquals(false, SplitMath.looksUnadjusted(listOf(trade(100, 1000.0, 109.0)), split, null))
+        // 恢復交易日之後的買賣不算
+        assertEquals(false, SplitMath.looksUnadjusted(listOf(trade(120, 1000.0, 109.0)), split, 23.1))
+        // 別檔股票不算
+        assertEquals(false, SplitMath.looksUnadjusted(listOf(trade(100, 1000.0, 109.0, symbol = "0056")), split, 23.1))
+    }
 }

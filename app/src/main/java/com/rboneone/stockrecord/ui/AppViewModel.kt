@@ -624,6 +624,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /** 重新執行已執行的分割（資料還是分割前的股數與價格時使用） */
+    fun reapplySplit(split: StockSplit) {
+        viewModelScope.launch { SplitApplier.reapply(db, split) }
+    }
+
     /** 刪除尚未執行的分割，或還原已執行的分割 */
     fun undoSplit(split: StockSplit) {
         viewModelScope.launch { SplitApplier.undo(db, split) }

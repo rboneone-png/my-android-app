@@ -88,6 +88,19 @@ object SplitMath {
     fun alignBars(bars: List<Bar>, ratio: Int, unadjustedBefore: Long): List<Bar> =
         bars.map { if (it.date < unadjustedBefore) it.copy(close = it.close / ratio) else it }
 
+    /**
+     * 已執行的分割，買賣紀錄看起來是不是「沒有調整到」（例如還原備份後）：
+     * 恢復交易日之前的買賣，平均價格還在分割前的水準——是現價 [postPrice]（分割後）的將近一個倍數（超過倍數的平方根倍）。
+     */
+    fun looksUnadjusted(trades: List<Trade>, split: StockSplit, postPrice: Double?): Boolean {
+        if (postPrice == null || postPrice <= 0) return false
+        val before = trades.filter { it.market == split.market && it.symbol == split.symbol && it.date < split.resumeDate }
+        val shares = before.sumOf { it.shares }
+        if (shares <= 0) return false
+        val avg = before.sumOf { it.shares * it.price } / shares
+        return avg / postPrice >= Math.sqrt(split.ratio.toDouble())
+    }
+
     /** 這檔股票在這個恢復交易日是不是已經有分割設定（再設定一次會把股數重複調整） */
     fun isDuplicate(existing: List<StockSplit>, candidate: StockSplit): Boolean =
         existing.any { it.id != candidate.id && it.market == candidate.market && it.symbol == candidate.symbol && it.resumeDate == candidate.resumeDate }
