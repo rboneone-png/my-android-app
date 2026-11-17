@@ -87,4 +87,17 @@ object SplitMath {
      */
     fun alignBars(bars: List<Bar>, ratio: Int, unadjustedBefore: Long): List<Bar> =
         bars.map { if (it.date < unadjustedBefore) it.copy(close = it.close / ratio) else it }
+
+    /** 同一次分割（暫停日可能不同，但市場、代號、恢復交易日、倍數一樣就當作同一筆） */
+    private fun sameSplit(a: StockSplit, b: StockSplit) =
+        a.market == b.market && a.symbol == b.symbol && a.resumeDate == b.resumeDate && a.ratio == b.ratio
+
+    /**
+     * 還原備份時，手機上「備份裡沒有」的分割要保留下來。
+     * 備份比這筆分割的設定更早做的話，備份裡的買賣還是分割前的股數與價格，所以這些分割要再執行一次：
+     * 回傳要補進去的分割（id 歸零、applied = false），之後由到期檢查自動調整。
+     * 備份裡已經有的分割不動：applied 為 false 的會自己到期執行，applied 為 true 代表備份裡的買賣本來就是分割後的。
+     */
+    fun splitsToCarryOver(deviceSplits: List<StockSplit>, backupSplits: List<StockSplit>): List<StockSplit> =
+        deviceSplits.filter { d -> backupSplits.none { sameSplit(it, d) } }.map { it.copy(id = 0, applied = false) }
 }

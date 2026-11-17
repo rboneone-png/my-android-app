@@ -2,6 +2,8 @@ package com.rboneone.stockrecord.sync
 
 import android.net.Uri
 import androidx.room.withTransaction
+import com.rboneone.stockrecord.domain.SplitMath
+import com.rboneone.stockrecord.data.SplitApplier
 import androidx.work.Constraints
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingPeriodicWorkPolicy
@@ -106,6 +108,8 @@ class SyncManager(private val app: StockApp) {
     private suspend fun apply(userId: String, data: BackupData): Int {
         val db = app.database(userId)
         db.withTransaction {
+            // 手機上現有的股票分割：備份裡沒有的（備份比分割的設定更早做）要保留，避免還原後股數與價格對不上
+            val deviceSplits = db.stockSplitDao().getAll()
             db.tradeDao().deleteAll()
             db.dividendDao().deleteAll()
             db.tradeDao().insertAll(data.trades)
@@ -126,7 +130,10 @@ class SyncManager(private val app: StockApp) {
             db.loanDao().insertAll(data.loans)
             db.stockSplitDao().deleteAll()
             db.stockSplitDao().insertAll(data.splits)
+            db.stockSplitDao().insertAll(SplitMath.splitsToCarryOver(deviceSplits, data.splits))
         }
+        // 還原的買賣若是分割前的資料，立刻依到期的分割調整，不用等下次更新報價
+        SplitApplier.applyDue(db, java.time.LocalDate.now().toEpochDay())
         app.settings(userId).update(data.fees)
         app.settings(userId).setCash(data.cash)
         app.settings(userId).setClecLivingCost(data.clecLivingCost)

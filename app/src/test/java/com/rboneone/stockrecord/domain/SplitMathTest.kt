@@ -189,4 +189,32 @@ class SplitMathTest {
         // 沒對齊時，前一天的市值被放大成 5 倍，買進當天損益嚴重失真
         assertEquals(228_800.0 - 566_750.0 - 114_000.0, wrong.pnl, 1e-6)
     }
+
+    // ---- 還原備份時保留手機上的分割 ----
+
+    private fun sp(id: Long, symbol: String = "0050", resume: Long = 110, ratio: Int = 5, applied: Boolean = false, suspend: Long = 100) =
+        StockSplit(id, Market.TW, symbol, symbol, suspend, resume, ratio, applied)
+
+    @Test
+    fun carryOver_splitMissingFromBackup_isKeptAsNotApplied() {
+        // 備份是分割設定之前做的（備份裡沒有）；手機上已執行（applied = true）→ 補回，並重新執行
+        val device = listOf(sp(7, applied = true))
+        val extra = SplitMath.splitsToCarryOver(device, emptyList())
+        assertEquals(listOf(sp(0, applied = false)), extra)
+    }
+
+    @Test
+    fun carryOver_splitAlreadyInBackup_isNotDuplicated() {
+        val device = listOf(sp(7, applied = true))
+        // 備份裡有同一筆（暫停日不同也算同一筆）：不補，沿用備份自己的 applied 狀態
+        assertEquals(emptyList<StockSplit>(), SplitMath.splitsToCarryOver(device, listOf(sp(1, applied = false, suspend = 99))))
+        assertEquals(emptyList<StockSplit>(), SplitMath.splitsToCarryOver(device, listOf(sp(1, applied = true))))
+    }
+
+    @Test
+    fun carryOver_onlyTheMissingOnes() {
+        val device = listOf(sp(1), sp(2, symbol = "0056"), sp(3, symbol = "2330", ratio = 2))
+        val backup = listOf(sp(9, symbol = "0056"))
+        assertEquals(listOf("0050", "2330"), SplitMath.splitsToCarryOver(device, backup).map { it.symbol })
+    }
 }
