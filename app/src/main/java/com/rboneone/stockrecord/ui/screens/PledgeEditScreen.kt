@@ -1,6 +1,19 @@
 package com.rboneone.stockrecord.ui.screens
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.input.pointer.pointerInput
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -181,16 +194,7 @@ fun PledgeEditScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             // A. 股票代碼：使用者輸入（編輯既有質押時固定）
-            OutlinedTextField(
-                value = symbol,
-                onValueChange = { symbol = it; name = ""; error = null },
-                label = { Text("股票代碼") },
-                placeholder = { Text("例如 2330") },
-                singleLine = true,
-                readOnly = true,
-                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters),
-                modifier = Modifier.fillMaxWidth(),
-            )
+            ReadOnlyField("股票代碼", symbol.ifBlank { "--" })
             // B. 股票名稱：自動帶入
             ReadOnlyField("股票名稱", name.ifBlank { "--" }, supporting = nameHint)
             // C. 股價：自動帶入
@@ -305,13 +309,34 @@ fun PledgeEditScreen(
     }
 }
 
-/** 輸入框右側的上下鍵 */
+/** 輸入框右側的上下鍵；按住不放會持續增減 */
 @Composable
 private fun StepButtons(onUp: () -> Unit, onDown: () -> Unit) {
     Row {
-        IconButton(onClick = onDown) { Icon(Icons.Filled.KeyboardArrowDown, contentDescription = "減少") }
-        IconButton(onClick = onUp) { Icon(Icons.Filled.KeyboardArrowUp, contentDescription = "增加") }
+        RepeatIcon(Icons.Filled.KeyboardArrowDown, "減少", onDown)
+        RepeatIcon(Icons.Filled.KeyboardArrowUp, "增加", onUp)
     }
+}
+
+@Composable
+private fun RepeatIcon(icon: androidx.compose.ui.graphics.vector.ImageVector, desc: String, onStep: () -> Unit) {
+    val current by rememberUpdatedState(onStep)
+    val scope = rememberCoroutineScope()
+    Box(
+        Modifier.size(40.dp).pointerInput(Unit) {
+            awaitEachGesture {
+                awaitFirstDown()
+                current()
+                val job = scope.launch {
+                    delay(400)
+                    while (true) { current(); delay(80) }
+                }
+                waitForUpOrCancellation()
+                job.cancel()
+            }
+        },
+        contentAlignment = Alignment.Center,
+    ) { Icon(icon, contentDescription = desc) }
 }
 
 @Composable
@@ -322,7 +347,8 @@ internal fun ReadOnlyField(
     isError: Boolean = false,
     valueColor: Color = Color.Unspecified,
 ) {
-    OutlinedTextField(
+    // 唯讀欄位：灰底、無外框，和可輸入的外框欄位區別
+    TextField(
         value = value,
         onValueChange = {},
         readOnly = true,
@@ -331,6 +357,14 @@ internal fun ReadOnlyField(
         singleLine = true,
         supportingText = supporting?.let { { Text(it) } },
         textStyle = MaterialTheme.typography.bodyLarge.copy(color = valueColor, fontWeight = FontWeight.Medium),
+        colors = TextFieldDefaults.colors(
+            focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+            errorContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+            focusedIndicatorColor = Color.Transparent,
+            unfocusedIndicatorColor = Color.Transparent,
+            errorIndicatorColor = Color.Transparent,
+        ),
         modifier = Modifier.fillMaxWidth(),
     )
 }
