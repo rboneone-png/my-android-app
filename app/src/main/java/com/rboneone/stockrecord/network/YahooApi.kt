@@ -3,6 +3,8 @@ package com.rboneone.stockrecord.network
 import com.rboneone.stockrecord.data.Market
 import com.rboneone.stockrecord.data.Quote
 import com.rboneone.stockrecord.domain.Bar
+import com.rboneone.stockrecord.domain.HighBar
+import com.rboneone.stockrecord.domain.HighWatch
 import com.rboneone.stockrecord.domain.PeriodHigh
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -180,18 +182,22 @@ object YahooApi {
         val timestamps = result.optJSONArray("timestamp")
         val quote = result.optJSONObject("indicators")?.optJSONArray("quote")?.optJSONObject(0)
         val highs = quote?.optJSONArray("high")
+        val closes = quote?.optJSONArray("close")
         val volumes = quote?.optJSONArray("volume")
         if (timestamps != null && highs != null) {
+            val bars = ArrayList<HighBar>()
             for (i in 0 until minOf(timestamps.length(), highs.length())) {
                 if (highs.isNull(i)) continue
+                val volume = if (volumes != null && i < volumes.length() && !volumes.isNull(i)) volumes.getLong(i) else null
                 // 休市日補的資料（成交量 0）不算
-                if (volumes != null && i < volumes.length() && !volumes.isNull(i) && volumes.getLong(i) == 0L) continue
+                if (volume == 0L) continue
                 val high = highs.getDouble(i)
                 if (high.isNaN() || high <= 0) continue
-                if (best == null || high > best.price) {
-                    best = PeriodHigh(high, Math.floorDiv(timestamps.getLong(i) + offset, 86_400L))
-                }
+                val close = if (closes != null && i < closes.length() && !closes.isNull(i)) closes.getDouble(i) else high
+                bars += HighBar(Math.floorDiv(timestamps.getLong(i) + offset, 86_400L), high, close, volume)
             }
+            // 剛分割完時 Yahoo 的歷史價可能只調整一部分：把沒調整到的部分換成分割後的基準，再取最高
+            best = HighWatch.splitAdjustedHigh(bars)
         }
         // 今天的最高價可能還沒進日線
         if (meta != null && !meta.isNull("regularMarketDayHigh") && meta.optLong("regularMarketTime") > 0) {
