@@ -13,6 +13,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenuItem
@@ -185,7 +187,7 @@ fun PledgeEditScreen(
                 label = { Text("股票代碼") },
                 placeholder = { Text("例如 2330") },
                 singleLine = true,
-                readOnly = !isNew,
+                readOnly = true,
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters),
                 modifier = Modifier.fillMaxWidth(),
             )
@@ -217,6 +219,12 @@ fun PledgeEditScreen(
                 supportingText = {
                     Text(sharesError ?: "須為 1,000 股的倍數，最多 ${available?.let { formatShares(it) } ?: "--"} 股")
                 },
+                trailingIcon = {
+                    StepButtons(
+                        onUp = { sharesText = plainNumber(PledgeCalculator.step(pledgeShares, true, max = available)); error = null },
+                        onDown = { sharesText = plainNumber(PledgeCalculator.step(pledgeShares, false, max = available)); error = null },
+                    )
+                },
                 keyboardOptions = KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
                 modifier = Modifier.fillMaxWidth(),
             )
@@ -229,6 +237,12 @@ fun PledgeEditScreen(
                 isError = amountError != null,
                 supportingText = {
                     Text(amountError ?: "須為 1,000 的倍數，例如 5,000、12,000（5,100、5,010、5,001 不可）")
+                },
+                trailingIcon = {
+                    StepButtons(
+                        onUp = { amountText = plainNumber(PledgeCalculator.step(amount, true)); error = null },
+                        onDown = { amountText = plainNumber(PledgeCalculator.step(amount, false)); error = null },
+                    )
                 },
                 keyboardOptions = KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
                 modifier = Modifier.fillMaxWidth(),
@@ -288,6 +302,15 @@ fun PledgeEditScreen(
             },
             dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("取消") } },
         )
+    }
+}
+
+/** 輸入框右側的上下鍵 */
+@Composable
+private fun StepButtons(onUp: () -> Unit, onDown: () -> Unit) {
+    Row {
+        IconButton(onClick = onDown) { Icon(Icons.Filled.KeyboardArrowDown, contentDescription = "減少") }
+        IconButton(onClick = onUp) { Icon(Icons.Filled.KeyboardArrowUp, contentDescription = "增加") }
     }
 }
 

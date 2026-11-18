@@ -203,4 +203,15 @@ class PledgeCalculatorTest {
         assertEquals(false, PledgeCalculator.belowMinMaintenance(PledgeCalculator.maintenancePct(1_000.0, 100.0, 60_000.0)!!))
         assertEquals(true, PledgeCalculator.belowMinMaintenance(PledgeCalculator.maintenancePct(1_000.0, 100.0, 61_000.0)!!))
     }
+
+    @Test fun step_roundsToThousands() {
+        assertEquals(6000.0, PledgeCalculator.step(5000.0, true), 0.0)
+        assertEquals(5000.0, PledgeCalculator.step(5100.0, true).let { it - 1000 }, 0.0)
+        assertEquals(6000.0, PledgeCalculator.step(5100.0, true), 0.0)
+        assertEquals(5000.0, PledgeCalculator.step(5100.0, false), 0.0)
+        assertEquals(1000.0, PledgeCalculator.step(1000.0, false), 0.0)
+        assertEquals(1000.0, PledgeCalculator.step(null, true), 0.0)
+        assertEquals(3000.0, PledgeCalculator.step(3000.0, true, max = 3000.0), 0.0)
+        assertEquals(3000.0, PledgeCalculator.step(2000.0, true, max = 3500.0), 0.0)
+    }
 }

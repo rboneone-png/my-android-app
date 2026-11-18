@@ -126,6 +126,17 @@ object PledgeCalculator {
             .sortedBy { it.symbol }
 
     /** 質借金額必須是 1000 元的倍數；合法時回傳 null，否則回傳說明 */
+    /**
+     * 上下鍵調整：以 1,000 為單位進位。up=true 往上到下一個千位，否則往下到上一個千位；
+     * 結果夾在 [min, max] 內（max 為 null 表示沒有上限）。目前值不是千的倍數時，先對齊到千位。
+     */
+    fun step(current: Double?, up: Boolean, min: Double = LOT, max: Double? = null): Double {
+        val cur = current ?: 0.0
+        val next = if (up) (Math.floor(cur / LOT) + 1) * LOT else (Math.ceil(cur / LOT) - 1) * LOT
+        val capped = if (max != null) minOf(next, Math.floor(max / LOT) * LOT) else next
+        return maxOf(capped, min)
+    }
+
     fun amountError(amount: Double?): String? = when {
         amount == null -> "請輸入質借金額"
         amount <= 0 -> "質借金額需大於 0"
