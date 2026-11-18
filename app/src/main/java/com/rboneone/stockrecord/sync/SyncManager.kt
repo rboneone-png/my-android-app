@@ -46,6 +46,9 @@ class SyncManager(private val app: StockApp) {
             splits = db.stockSplitDao().getAll(),
             clecLivingCost = app.settings(userId).clecLivingCost.value,
             clecMethod = app.settings(userId).clecMethod.value,
+            addonMethod = app.settings(userId).addonMethod.value,
+            addonReserve = app.settings(userId).addonReserve.value,
+            addonTranches = app.settings(userId).addonTranches.value,
             clecOverrides = app.settings(userId).clecOverrides.value,
             account = app.accountStore.find(userId)?.let { BackupAccount(it.username, it.salt, it.passwordHash, it.method.name) },
         )
@@ -142,6 +145,9 @@ class SyncManager(private val app: StockApp) {
         app.settings(userId).setCash(data.cash)
         app.settings(userId).setClecLivingCost(data.clecLivingCost)
         app.settings(userId).setClecMethod(data.clecMethod)
+        app.settings(userId).setAddonMethod(data.addonMethod)
+        app.settings(userId).setAddonReserve(data.addonReserve)
+        app.settings(userId).setAddonTranches(data.addonTranches)
         app.settings(userId).setClecOverrides(data.clecOverrides)
         data.holdingOrder.forEach { (market, symbols) -> app.settings(userId).setHoldingOrder(market, symbols) }
         return data.trades.size + data.dividends.size

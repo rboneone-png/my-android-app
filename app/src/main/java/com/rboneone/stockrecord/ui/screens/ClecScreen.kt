@@ -37,7 +37,7 @@ import com.rboneone.stockrecord.ui.toAmountOrNull
 
 private fun twd(v: Double) = formatAmount(Market.TW, v)
 
-/** 資產配置頁的「CLEC退休投資策略」分頁 */
+/** 資產配置頁的「CLEC投資策略」分頁 */
 @Composable
 fun ClecTab(vm: AppViewModel, allocation: AllocationView) {
     val livingCost by vm.clecLivingCost.collectAsStateWithLifecycle()
@@ -57,7 +57,7 @@ fun ClecTab(vm: AppViewModel, allocation: AllocationView) {
     ) {
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("CLEC 退休投資策略", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text("CLEC 投資策略", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 // A. 一年生活費：使用者輸入
                 NumberField(
                     livingText,

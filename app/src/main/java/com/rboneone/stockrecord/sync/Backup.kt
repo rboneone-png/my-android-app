@@ -52,6 +52,10 @@ data class BackupData(
     val clecOverrides: com.rboneone.stockrecord.domain.Clec.Overrides = com.rboneone.stockrecord.domain.Clec.Overrides(),
     /** 股票分割（舊版備份沒有） */
     val splits: List<StockSplit> = emptyList(),
+    /** 加減碼策略的設定（舊版備份沒有） */
+    val addonMethod: String = "433",
+    val addonReserve: Double = 0.0,
+    val addonTranches: Double = 0.0,
 )
 
 /** 備份檔格式（JSON），只含密碼的加鹽雜湊值，不含明碼 */
@@ -154,6 +158,9 @@ object Backup {
             .put("loans", loans)
             .put("clecLivingCost", data.clecLivingCost)
             .put("clecMethod", data.clecMethod)
+            .put("addonMethod", data.addonMethod)
+            .put("addonReserve", data.addonReserve)
+            .put("addonTranches", data.addonTranches)
             .also { o ->
                 data.clecOverrides.indexEtf?.let { o.put("clecF", it) }
                 data.clecOverrides.leveragedEtf?.let { o.put("clecG", it) }
@@ -373,6 +380,9 @@ object Backup {
                 if (root.has("clecH")) root.optDouble("clecH") else null,
             ),
             splits,
+            root.optString("addonMethod", "433").ifEmpty { "433" },
+            root.optDouble("addonReserve", 0.0).takeUnless { it.isNaN() } ?: 0.0,
+            root.optDouble("addonTranches", 0.0).takeUnless { it.isNaN() } ?: 0.0,
         )
     }
 }

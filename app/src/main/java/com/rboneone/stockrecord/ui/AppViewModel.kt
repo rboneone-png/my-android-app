@@ -157,6 +157,13 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     val clecMethod: StateFlow<String> = settingsRepository.clecMethod
     fun setClecLivingCost(amount: Double) = settingsRepository.setClecLivingCost(amount)
     fun setClecMethod(code: String) = settingsRepository.setClecMethod(code)
+    // ---- 加減碼策略 ----
+    val addonMethod: StateFlow<String> = settingsRepository.addonMethod
+    val addonReserve: StateFlow<Double> = settingsRepository.addonReserve
+    val addonTranches: StateFlow<Double> = settingsRepository.addonTranches
+    fun setAddonMethod(code: String) = settingsRepository.setAddonMethod(code)
+    fun setAddonReserve(amount: Double) = settingsRepository.setAddonReserve(amount)
+    fun setAddonTranches(n: Double) = settingsRepository.setAddonTranches(n)
     val clecOverrides: StateFlow<Clec.Overrides> = settingsRepository.clecOverrides
     fun setClecOverrides(o: Clec.Overrides) = settingsRepository.setClecOverrides(o)
 

@@ -9,6 +9,8 @@ data class AllocationItem(
     val category: AssetCategory?,
     /** 台幣市值；美股沒有匯率時為 null */
     val valueTwd: Double?,
+    /** 台幣成本；美股沒有匯率時為 null */
+    val costTwd: Double? = null,
 )
 
 /**
@@ -27,6 +29,12 @@ data class AllocationView(
     /** 有美股持股但尚未取得匯率 */
     val missingFx: Boolean,
 ) {
+    /** 持股成本（台幣，A. 投入資金）：所有持股的成本合計 */
+    val holdingCost: Double get() = items.sumOf { it.costTwd ?: 0.0 }
+
+    /** 持股市值（台幣）：所有持股的市值合計，不含現金 */
+    val holdingValue: Double get() = items.sumOf { it.valueTwd ?: 0.0 }
+
     val total: Double get() = core + leveraged + cashLike + cash + stock + other
     val exposure: Double get() = core + 2 * leveraged
 
@@ -53,7 +61,11 @@ object Allocation {
                     Market.TW -> value
                     Market.US -> fx?.let { value * it }
                 }
-                AllocationItem(p, categories[h.market to h.symbol], twd)
+                val cost = when (h.market) {
+                    Market.TW -> h.totalCost
+                    Market.US -> fx?.let { h.totalCost * it }
+                }
+                AllocationItem(p, categories[h.market to h.symbol], twd, cost)
             }
         fun sum(category: AssetCategory) =
             items.filter { it.category == category }.sumOf { it.valueTwd ?: 0.0 }

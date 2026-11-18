@@ -47,6 +47,18 @@ class SettingsRepository(context: Context, userId: String) {
     /** CLEC 退休投資策略：配置方式代碼（例如 433） */
     val clecMethod: StateFlow<String> = _clecMethod.asStateFlow()
 
+    private val _addonMethod = MutableStateFlow(prefs.getString(KEY_ADDON_METHOD, null) ?: "433")
+    /** 加減碼策略：配置方式代碼 */
+    val addonMethod: StateFlow<String> = _addonMethod.asStateFlow()
+
+    private val _addonReserve = MutableStateFlow(prefs.double(KEY_ADDON_RESERVE, 0.0))
+    /** 加減碼策略：預留生活費（元） */
+    val addonReserve: StateFlow<Double> = _addonReserve.asStateFlow()
+
+    private val _addonTranches = MutableStateFlow(prefs.double(KEY_ADDON_TRANCHES, 0.0))
+    /** 加減碼策略：加碼等份 */
+    val addonTranches: StateFlow<Double> = _addonTranches.asStateFlow()
+
     private val _clecOverrides = MutableStateFlow(
         Clec.Overrides(
             prefs.getString(KEY_CLEC_F, null)?.toDoubleOrNull(),
@@ -133,6 +145,21 @@ class SettingsRepository(context: Context, userId: String) {
         _clecOverrides.value = o
     }
 
+    fun setAddonMethod(code: String) {
+        prefs.edit().putString(KEY_ADDON_METHOD, code).apply()
+        _addonMethod.value = code
+    }
+
+    fun setAddonReserve(amount: Double) {
+        prefs.edit().putString(KEY_ADDON_RESERVE, amount.toString()).apply()
+        _addonReserve.value = amount
+    }
+
+    fun setAddonTranches(n: Double) {
+        prefs.edit().putString(KEY_ADDON_TRANCHES, n.toString()).apply()
+        _addonTranches.value = n
+    }
+
     fun setClecMethod(code: String) {
         prefs.edit().putString(KEY_CLEC_METHOD, code).apply()
         _clecMethod.value = code
@@ -177,6 +204,9 @@ class SettingsRepository(context: Context, userId: String) {
         private const val KEY_US_DIV_TAX = "us_dividend_tax"
         private const val KEY_REFRESH = "refresh_seconds"
         private const val KEY_CASH = "cash_twd"
+        private const val KEY_ADDON_METHOD = "addon_method"
+        private const val KEY_ADDON_RESERVE = "addon_reserve"
+        private const val KEY_ADDON_TRANCHES = "addon_tranches"
         private const val KEY_CLEC_LIVING = "clec_living_cost"
         private const val KEY_CLEC_METHOD = "clec_method"
         private const val KEY_CLEC_F = "clec_f"
