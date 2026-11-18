@@ -80,19 +80,19 @@ fun AllocationScreen(vm: AppViewModel) {
         expandedGroups = if (key in expandedGroups) expandedGroups - key else expandedGroups + key
     }
 
-    // 三個分頁：資產配置、CLEC投資策略、加減碼策略
+    // 三個分頁：資產配置、CLEC策略、加減碼策略
     var tab by rememberSaveable { mutableIntStateOf(0) }
 
     Column(Modifier.fillMaxSize()) {
         ScreenTopBar("資產配置")
         TabRow(selectedTabIndex = tab) {
             Tab(selected = tab == 0, onClick = { tab = 0 }, text = { Text("資產配置") })
-            Tab(selected = tab == 1, onClick = { tab = 1 }, text = { Text("CLEC投資策略") })
+            Tab(selected = tab == 1, onClick = { tab = 1 }, text = { Text("CLEC策略") })
             Tab(selected = tab == 2, onClick = { tab = 2 }, text = { Text("加減碼策略") })
         }
         val a = allocation
         if (a == null) return@Column
-        // 左滑／右滑切換「資產配置」「CLEC投資策略」「加減碼策略」（設定可關閉）
+        // 左滑／右滑切換「資產配置」「CLEC策略」「加減碼策略」（設定可關閉）
         val swipeModifier = Modifier.weight(1f).fillMaxWidth().swipeToSwitch(swipe) { d -> tab = (tab + d).coerceIn(0, 2) }
         if (tab == 1) {
             Box(swipeModifier) { ClecTab(vm, a) }

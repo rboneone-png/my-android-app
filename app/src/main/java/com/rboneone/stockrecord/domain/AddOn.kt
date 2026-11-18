@@ -5,7 +5,8 @@ package com.rboneone.stockrecord.domain
  *
  * - A 投入資金 = 持股成本；B 持股市值 = 持股市值（皆台幣，不含現金）
  * - C 配置方式：與 CLEC 相同的選項（原型／正二／類現金 三碼）
- * - D 預留生活費：使用者輸入
+ * - A 也可由使用者輸入（預設自動帶入持股成本）
+ * - D 預留生活費 = 預留月數 × 每月生活費，兩者皆由使用者輸入
  * - 策略 VS 實際：策略佔比＝配置方式的各碼；策略金額＝策略佔比 × A（類現金與現金合併成一列，共用「類現金%」）；
  *   實際＝資產配置頁各項佔總資產的比例
  * - 加碼金 = A × 0.3 − D；每次加碼金額 = 加碼金 ÷ 加碼等份
@@ -17,6 +18,11 @@ object AddOn {
 
     data class Result(
         val invested: Double,
+        /** A 是否為使用者手動輸入 */
+        val investedManual: Boolean,
+        /** 預留月數、每月生活費 */
+        val months: Double,
+        val monthly: Double,
         val marketValue: Double,
         val method: Clec.Plan,
         val reserve: Double,
@@ -32,13 +38,17 @@ object AddOn {
         val perReduce: Double?,
     )
 
-    fun compute(view: AllocationView, methodCode: String, reserve: Double, tranches: Double): Result {
-        val a = view.holdingCost
+    fun compute(
+        view: AllocationView, methodCode: String, investedOverride: Double?,
+        months: Double, monthly: Double, tranches: Double,
+    ): Result {
+        val a = investedOverride ?: view.holdingCost
+        val reserve = months * monthly
         val plan = Clec.plan(methodCode)
         val cap = a * ADD_RATIO - reserve
         val n = tranches.toInt().takeIf { it > 0 && tranches == it.toDouble() }
         return Result(
-            a, view.holdingValue, plan, reserve, n,
+            a, investedOverride != null, months, monthly, view.holdingValue, plan, reserve, n,
             a * plan.corePct, a * plan.leveragedPct, a * plan.cashLikePct,
             cap,
             if (cap > 0 && n != null) cap / n else null,

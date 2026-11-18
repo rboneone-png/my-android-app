@@ -42,11 +42,17 @@ private fun pct(v: Double?) = v?.let { "%.1f%%".format(it) } ?: "--"
 @Composable
 fun AddOnTab(vm: AppViewModel, allocation: AllocationView) {
     val methodCode by vm.addonMethod.collectAsStateWithLifecycle()
-    val reserve by vm.addonReserve.collectAsStateWithLifecycle()
+    val months by vm.addonMonths.collectAsStateWithLifecycle()
+    val monthly by vm.addonMonthly.collectAsStateWithLifecycle()
     val tranches by vm.addonTranches.collectAsStateWithLifecycle()
-    var reserveText by rememberSaveable { mutableStateOf(if (reserve > 0) plainNumber(reserve) else "") }
+    val investedOverride by vm.addonInvested.collectAsStateWithLifecycle()
+    var investedText by rememberSaveable { mutableStateOf(investedOverride?.let { plainNumber(it) } ?: "") }
+    var monthsText by rememberSaveable { mutableStateOf(if (months > 0) plainNumber(months) else "") }
+    var monthlyText by rememberSaveable { mutableStateOf(if (monthly > 0) plainNumber(monthly) else "") }
     var tranchesText by rememberSaveable { mutableStateOf(if (tranches > 0) plainNumber(tranches) else "") }
-    val r = remember(allocation, methodCode, reserve, tranches) { AddOn.compute(allocation, methodCode, reserve, tranches) }
+    val r = remember(allocation, methodCode, investedOverride, months, monthly, tranches) {
+        AddOn.compute(allocation, methodCode, investedOverride, months, monthly, tranches)
+    }
 
     Column(
         Modifier.verticalScroll(rememberScrollState()).padding(16.dp),
@@ -55,7 +61,18 @@ fun AddOnTab(vm: AppViewModel, allocation: AllocationView) {
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("加減碼策略", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                ReadOnlyField("A. 投入資金", twd(r.invested), supporting = "= 持股成本")
+                // A：預設自動（持股成本），可手動輸入，按「自動」恢復
+                NumberField(
+                    if (r.investedManual) investedText.ifEmpty { Math.round(r.invested).toString() } else Math.round(r.invested).toString(),
+                    {
+                        investedText = it
+                        vm.setAddonInvested(it.toAmountOrNull()?.coerceAtLeast(0.0) ?: 0.0)
+                    },
+                    "A. 投入資金（元）",
+                    Modifier.fillMaxWidth(),
+                    supporting = if (r.investedManual) "手動（自動值 ${twd(allocation.holdingCost)}）" else "自動：持股成本",
+                    onResetAuto = if (r.investedManual) ({ investedText = ""; vm.setAddonInvested(null) }) else null,
+                )
                 ReadOnlyField("B. 持股市值", twd(r.marketValue), supporting = "= 持股市值（不含現金）")
                 DropdownField(
                     "C. 配置方式",
@@ -63,16 +80,25 @@ fun AddOnTab(vm: AppViewModel, allocation: AllocationView) {
                     Clec.PLANS.map { "${it.code}　${it.mixText}" },
                     Modifier.fillMaxWidth(),
                 ) { vm.setAddonMethod(Clec.PLANS[it].code) }
+                Text("D. 預留生活費", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
                 NumberField(
-                    reserveText,
+                    monthsText,
                     {
-                        reserveText = it
-                        vm.setAddonReserve(it.toAmountOrNull()?.takeIf { v -> v > 0 } ?: 0.0)
+                        monthsText = it
+                        vm.setAddonMonths(it.toAmountOrNull()?.takeIf { v -> v > 0 } ?: 0.0)
                     },
-                    "D. 預留生活費（元）",
+                    "1. 預留月數",
                     Modifier.fillMaxWidth(),
                     supporting = "尚在工作建議3~6個月，退休3年以上",
                 )
+                StepNumberField(
+                    monthlyText,
+                    { monthlyText = it; vm.setAddonMonthly(it.toAmountOrNull()?.takeIf { v -> v > 0 } ?: 0.0) },
+                    "2. 每月生活費（元）",
+                    step = 10_000.0,
+                    supporting = "按 ▲▼ 每次增減 1 萬，按住不放可快速增減",
+                )
+                ReadOnlyField("預留生活費", twd(r.months * r.monthly), supporting = "= 預留月數 × 每月生活費")
             }
         }
 
@@ -113,15 +139,12 @@ fun AddOnTab(vm: AppViewModel, allocation: AllocationView) {
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("F. 加碼設定", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                NumberField(
+                StepNumberField(
                     tranchesText,
-                    {
-                        tranchesText = it
-                        vm.setAddonTranches(it.toAmountOrNull()?.takeIf { v -> v > 0 } ?: 0.0)
-                    },
+                    { tranchesText = it; vm.setAddonTranches(it.toAmountOrNull()?.takeIf { v -> v > 0 } ?: 0.0) },
                     "a. 加碼等份",
-                    Modifier.fillMaxWidth(),
-                    supporting = "整數，例如 5",
+                    step = 1.0,
+                    supporting = "整數，例如 5；按 ▲▼ 每次增減 1，按住不放可快速增減",
                 )
                 ReadOnlyField(
                     "加碼金總額",
@@ -168,4 +191,25 @@ private fun CompareRow(label: String, actualPct: Double?, strategyPct: Double, a
     Row(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
         Cell(label, 0.8f); Cell(pct(actualPct), 1f); Cell(pct(strategyPct), 1f); Cell(twd(amount), 1.4f)
     }
+}
+
+/** 數字輸入框，右側有上下鍵（按一次增減 step，按住不放連續增減，最小 0） */
+@Composable
+private fun StepNumberField(value: String, onChange: (String) -> Unit, label: String, step: Double, supporting: String) {
+    val current = value.toAmountOrNull() ?: 0.0
+    androidx.compose.material3.OutlinedTextField(
+        value = value,
+        onValueChange = onChange,
+        label = { Text(label) },
+        singleLine = true,
+        supportingText = { Text(supporting) },
+        trailingIcon = {
+            StepButtons(
+                onUp = { onChange(plainNumber(current + step)) },
+                onDown = { onChange(plainNumber(maxOf(0.0, current - step))) },
+            )
+        },
+        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal),
+        modifier = Modifier.fillMaxWidth(),
+    )
 }

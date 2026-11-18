@@ -311,7 +311,7 @@ fun PledgeEditScreen(
 
 /** 輸入框右側的上下鍵；按住不放會持續增減 */
 @Composable
-private fun StepButtons(onUp: () -> Unit, onDown: () -> Unit) {
+internal fun StepButtons(onUp: () -> Unit, onDown: () -> Unit) {
     Row {
         RepeatIcon(Icons.Filled.KeyboardArrowDown, "減少", onDown)
         RepeatIcon(Icons.Filled.KeyboardArrowUp, "增加", onUp)

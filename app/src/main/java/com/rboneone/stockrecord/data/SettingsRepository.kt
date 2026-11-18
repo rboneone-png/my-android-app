@@ -51,9 +51,17 @@ class SettingsRepository(context: Context, userId: String) {
     /** 加減碼策略：配置方式代碼 */
     val addonMethod: StateFlow<String> = _addonMethod.asStateFlow()
 
-    private val _addonReserve = MutableStateFlow(prefs.double(KEY_ADDON_RESERVE, 0.0))
-    /** 加減碼策略：預留生活費（元） */
-    val addonReserve: StateFlow<Double> = _addonReserve.asStateFlow()
+    private val _addonMonths = MutableStateFlow(prefs.double(KEY_ADDON_MONTHS, 0.0))
+    /** 加減碼策略：預留月數 */
+    val addonMonths: StateFlow<Double> = _addonMonths.asStateFlow()
+
+    private val _addonMonthly = MutableStateFlow(prefs.double(KEY_ADDON_MONTHLY, 0.0))
+    /** 加減碼策略：每月生活費（元） */
+    val addonMonthly: StateFlow<Double> = _addonMonthly.asStateFlow()
+
+    private val _addonInvested = MutableStateFlow(prefs.getString(KEY_ADDON_INVESTED, null)?.toDoubleOrNull())
+    /** 加減碼策略：手動輸入的投入資金；null 表示自動（持股成本） */
+    val addonInvested: StateFlow<Double?> = _addonInvested.asStateFlow()
 
     private val _addonTranches = MutableStateFlow(prefs.double(KEY_ADDON_TRANCHES, 0.0))
     /** 加減碼策略：加碼等份 */
@@ -150,9 +158,19 @@ class SettingsRepository(context: Context, userId: String) {
         _addonMethod.value = code
     }
 
-    fun setAddonReserve(amount: Double) {
-        prefs.edit().putString(KEY_ADDON_RESERVE, amount.toString()).apply()
-        _addonReserve.value = amount
+    fun setAddonMonths(n: Double) {
+        prefs.edit().putString(KEY_ADDON_MONTHS, n.toString()).apply()
+        _addonMonths.value = n
+    }
+
+    fun setAddonMonthly(amount: Double) {
+        prefs.edit().putString(KEY_ADDON_MONTHLY, amount.toString()).apply()
+        _addonMonthly.value = amount
+    }
+
+    fun setAddonInvested(amount: Double?) {
+        prefs.edit().apply { if (amount == null) remove(KEY_ADDON_INVESTED) else putString(KEY_ADDON_INVESTED, amount.toString()) }.apply()
+        _addonInvested.value = amount
     }
 
     fun setAddonTranches(n: Double) {
@@ -205,7 +223,9 @@ class SettingsRepository(context: Context, userId: String) {
         private const val KEY_REFRESH = "refresh_seconds"
         private const val KEY_CASH = "cash_twd"
         private const val KEY_ADDON_METHOD = "addon_method"
-        private const val KEY_ADDON_RESERVE = "addon_reserve"
+        private const val KEY_ADDON_MONTHS = "addon_months"
+        private const val KEY_ADDON_MONTHLY = "addon_monthly"
+        private const val KEY_ADDON_INVESTED = "addon_invested"
         private const val KEY_ADDON_TRANCHES = "addon_tranches"
         private const val KEY_CLEC_LIVING = "clec_living_cost"
         private const val KEY_CLEC_METHOD = "clec_method"

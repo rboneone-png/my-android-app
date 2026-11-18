@@ -12,7 +12,7 @@ class AddOnTest {
             AllocationItem(pos(), null, 1_200_000.0, 1_000_000.0),
         )
         val v = AllocationView(1_200_000.0, 0.0, 0.0, 0.0, 0.0, 0.0, items, false)
-        val r = AddOn.compute(v, "433", 100_000.0, 5.0)
+        val r = AddOn.compute(v, "433", null, 2.0, 50_000.0, 5.0)
         assertEquals(1_000_000.0, r.invested, 0.0)
         assertEquals(1_200_000.0, r.marketValue, 0.0)
         assertEquals(400_000.0, r.coreAmount, 0.001)
@@ -24,11 +24,19 @@ class AddOnTest {
     }
 
     @Test fun compute_reserveTooLarge_orNoTranches() {
-        val r = AddOn.compute(view(), "433", 10.0, 0.0)
+        val r = AddOn.compute(view(), "433", null, 1.0, 10.0, 0.0)
         assertEquals(-10.0, r.addCapital, 0.0)
         assertNull(r.perTranche)
         assertNull(r.perReduce)
-        assertNull(AddOn.compute(view(), "433", 0.0, 2.5).tranches)
+        assertNull(AddOn.compute(view(), "433", null, 0.0, 0.0, 2.5).tranches)
+    }
+
+    @Test fun investedOverride_replacesHoldingCost() {
+        val r = AddOn.compute(view(), "433", 2_000_000.0, 3.0, 40_000.0, 4.0)
+        assertEquals(2_000_000.0, r.invested, 0.0)
+        assertEquals(true, r.investedManual)
+        assertEquals(480_000.0, r.addCapital, 0.001)
+        assertEquals(120_000.0, r.perTranche!!, 0.001)
     }
 
     private fun pos(): Position = Position(

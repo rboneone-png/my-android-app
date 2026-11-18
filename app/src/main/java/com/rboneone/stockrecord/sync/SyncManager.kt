@@ -47,8 +47,10 @@ class SyncManager(private val app: StockApp) {
             clecLivingCost = app.settings(userId).clecLivingCost.value,
             clecMethod = app.settings(userId).clecMethod.value,
             addonMethod = app.settings(userId).addonMethod.value,
-            addonReserve = app.settings(userId).addonReserve.value,
+            addonMonths = app.settings(userId).addonMonths.value,
+            addonMonthly = app.settings(userId).addonMonthly.value,
             addonTranches = app.settings(userId).addonTranches.value,
+            addonInvested = app.settings(userId).addonInvested.value,
             clecOverrides = app.settings(userId).clecOverrides.value,
             account = app.accountStore.find(userId)?.let { BackupAccount(it.username, it.salt, it.passwordHash, it.method.name) },
         )
@@ -146,7 +148,9 @@ class SyncManager(private val app: StockApp) {
         app.settings(userId).setClecLivingCost(data.clecLivingCost)
         app.settings(userId).setClecMethod(data.clecMethod)
         app.settings(userId).setAddonMethod(data.addonMethod)
-        app.settings(userId).setAddonReserve(data.addonReserve)
+        app.settings(userId).setAddonMonths(data.addonMonths)
+        app.settings(userId).setAddonMonthly(data.addonMonthly)
+        app.settings(userId).setAddonInvested(data.addonInvested)
         app.settings(userId).setAddonTranches(data.addonTranches)
         app.settings(userId).setClecOverrides(data.clecOverrides)
         data.holdingOrder.forEach { (market, symbols) -> app.settings(userId).setHoldingOrder(market, symbols) }

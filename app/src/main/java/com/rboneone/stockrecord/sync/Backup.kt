@@ -54,8 +54,11 @@ data class BackupData(
     val splits: List<StockSplit> = emptyList(),
     /** 加減碼策略的設定（舊版備份沒有） */
     val addonMethod: String = "433",
-    val addonReserve: Double = 0.0,
+    val addonMonths: Double = 0.0,
+    val addonMonthly: Double = 0.0,
     val addonTranches: Double = 0.0,
+    /** 加減碼的手動投入資金（null 表示自動） */
+    val addonInvested: Double? = null,
 )
 
 /** 備份檔格式（JSON），只含密碼的加鹽雜湊值，不含明碼 */
@@ -159,8 +162,10 @@ object Backup {
             .put("clecLivingCost", data.clecLivingCost)
             .put("clecMethod", data.clecMethod)
             .put("addonMethod", data.addonMethod)
-            .put("addonReserve", data.addonReserve)
+            .put("addonMonths", data.addonMonths)
+            .put("addonMonthly", data.addonMonthly)
             .put("addonTranches", data.addonTranches)
+            .also { o -> data.addonInvested?.let { o.put("addonInvested", it) } }
             .also { o ->
                 data.clecOverrides.indexEtf?.let { o.put("clecF", it) }
                 data.clecOverrides.leveragedEtf?.let { o.put("clecG", it) }
@@ -381,8 +386,10 @@ object Backup {
             ),
             splits,
             root.optString("addonMethod", "433").ifEmpty { "433" },
-            root.optDouble("addonReserve", 0.0).takeUnless { it.isNaN() } ?: 0.0,
+            root.optDouble("addonMonths", 0.0).takeUnless { it.isNaN() } ?: 0.0,
+            root.optDouble("addonMonthly", 0.0).takeUnless { it.isNaN() } ?: 0.0,
             root.optDouble("addonTranches", 0.0).takeUnless { it.isNaN() } ?: 0.0,
+            if (root.has("addonInvested")) root.optDouble("addonInvested") else null,
         )
     }
 }
