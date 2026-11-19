@@ -53,9 +53,12 @@ object SplitRepair {
         if (pledges.isEmpty()) return 0
         val trades = db.tradeDao().getAll().filter { it.market == sp.market && it.symbol == sp.symbol }
         val dividends = db.dividendDao().getAll().filter { it.market == sp.market && it.symbol == sp.symbol }
-        fun heldAt(date: Long): Double =
-            trades.filter { it.date <= date }.sumOf { if (it.type == TradeType.BUY) it.shares else -it.shares } +
-                dividends.filter { it.date <= date }.sumOf { it.stockShares }
+        // 質押日期可能比實際買進日早一點，所以用「歷來持股最多的時候」當上限：質押股數不可能超過它
+        val events = trades.map { it.date to (if (it.type == TradeType.BUY) it.shares else -it.shares) } +
+            dividends.filter { it.stockShares != 0.0 }.map { it.date to it.stockShares }
+        var run = 0.0
+        var peak = 0.0
+        events.sortedBy { it.first }.forEach { (_, q) -> run += q; if (run > peak) peak = run }
         // 收盤價只用來判斷「沒調整到」；抓不到（沒網路）時只做「質押股數超過持股」的判斷
         val yahoo = db.marketDao().getInfo(sp.market, sp.symbol)?.yahooSymbol
         val bars = yahoo?.let {
@@ -65,7 +68,7 @@ object SplitRepair {
         var fixed = 0
         for (p in pledges) {
             val close = aligned?.lastOrNull { it.date <= p.date }?.close
-            when (SplitMath.pledgeAdjustment(p, sp, heldAt(p.date), close)) {
+            when (SplitMath.pledgeAdjustment(p, sp, peak, close)) {
                 1 -> { db.pledgeDao().upsert(SplitMath.adjustPledge(p, sp, forward = true)); fixed++ }
                 -1 -> { db.pledgeDao().upsert(SplitMath.adjustPledge(p, sp, forward = false)); fixed++ }
             }

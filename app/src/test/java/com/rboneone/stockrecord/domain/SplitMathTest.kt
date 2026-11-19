@@ -282,6 +282,8 @@ class SplitMathTest {
         assertEquals(-1, SplitMath.pledgeAdjustment(pledge(100_000.0, 150_000.0), sp, 20_000.0, 24.0))
         // 沒有收盤價（沒網路）：不判斷「沒調整到」
         assertEquals(0, SplitMath.pledgeAdjustment(pledge(4_000.0, 150_000.0), sp, 20_000.0, null))
+        // 3.1.7 的重新執行把已調整的質押多 × 5：15,000 → 75,000（持股最多 20,000）→ ÷ 5
+        assertEquals(-1, SplitMath.pledgeAdjustment(pledge(75_000.0, 100_000.0), sp, 20_000.0, 23.0))
         // 恢復交易日之後的質押不受影響
         assertEquals(0, SplitMath.pledgeAdjustment(pledge(4_000.0, 150_000.0, date = 120), sp, 20_000.0, 24.0))
     }
