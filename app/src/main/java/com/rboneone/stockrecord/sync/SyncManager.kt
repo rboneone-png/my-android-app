@@ -15,6 +15,7 @@ import androidx.work.WorkerParameters
 import androidx.work.workDataOf
 import com.rboneone.stockrecord.StockApp
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
@@ -76,13 +77,16 @@ class SyncManager(private val app: StockApp) {
     /** 備份成檔案，存到使用者選的位置（可選 Google 雲端硬碟） */
     suspend fun backupToFile(userId: String, uri: Uri): Result<Unit> = runCatching {
         val json = Backup.serialize(collect(userId))
-        withContext(Dispatchers.IO) {
+        // 定時備份、手動備份與資料異動備份可能同時發生：一次只寫一個，避免檔案內容交錯
+        backupLock.withLock { withContext(Dispatchers.IO) {
             // 有些檔案提供者（例如雲端硬碟）不接受 "wt"，退回 "w"
             val out = runCatching { app.contentResolver.openOutputStream(uri, "wt") }.getOrNull()
                 ?: app.contentResolver.openOutputStream(uri, "w") ?: error("無法寫入檔案")
             out.use { it.write(json.toByteArray(Charsets.UTF_8)) }
-        }
+        } }
     }.also { record(userId, it.exceptionOrNull(), "備份") }
+
+    private val backupLock = kotlinx.coroutines.sync.Mutex()
 
     /** 從使用者選的備份檔還原，回傳還原的筆數 */
     suspend fun restoreFromFile(userId: String, uri: Uri): Result<Int> = runCatching {

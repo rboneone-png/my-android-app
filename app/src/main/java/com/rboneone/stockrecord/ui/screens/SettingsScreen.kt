@@ -47,6 +47,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.fragment.app.FragmentActivity
@@ -262,6 +263,24 @@ private fun SyncSection(vm: AppViewModel) {
                 },
             )
         }
+        // 新增或修改資料後立刻備份：要先開啟自動備份才能切換
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                "新增或修改資料後自動備份", Modifier.weight(1f), style = MaterialTheme.typography.titleSmall,
+                color = if (autoOn) Color.Unspecified else MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(if (autoOn && sync.backupOnChange) "開" else "關", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.width(8.dp))
+            Switch(
+                checked = autoOn && sync.backupOnChange,
+                enabled = autoOn && !syncing,
+                onCheckedChange = { vm.setBackupOnChange(it) },
+            )
+        }
+        Hint(
+            if (autoOn) "開啟後，新增、修改或刪除買賣、股利、質押等資料，約 5 秒後（連續修改只備份一次）自動寫入備份檔。預設關閉。"
+            else "需先開啟上方的「自動備份」才能切換。"
+        )
         if (sync.autoFileUri == null) {
             Hint("選一個備份檔（建議存到「雲端硬碟」），之後 App 會定時自動把資料寫進同一個檔案。不需要 Google Cloud 設定，也不會過期。")
             OutlinedButton(

@@ -11,6 +11,9 @@ import kotlinx.coroutines.flow.asStateFlow
 /** 自動備份週期換算成總小時 */
 fun SyncConfig.totalHours(): Int = (intervalDays * 24 + intervalHours).coerceAtLeast(1)
 
+/** 資料異動後要不要自動備份：自動備份開啟、已選好備份檔，而且「新增或修改後自動備份」也開著 */
+fun SyncConfig.backupOnChangeActive(): Boolean = auto && autoFileUri != null && backupOnChange
+
 data class SyncConfig(
     /** true：依週期自動備份；false：手動 */
     val auto: Boolean = false,
@@ -20,6 +23,8 @@ data class SyncConfig(
     /** 自動備份寫入的檔案（使用者用系統檔案選擇器選的，可放在 Google 雲端硬碟）；null 表示還沒選 */
     val autoFileUri: String? = null,
     val autoFileName: String? = null,
+    /** 新增或修改資料後立刻自動備份；只有自動備份開啟時才有作用，預設關 */
+    val backupOnChange: Boolean = false,
     val lastSyncAt: Long = 0,
     val lastResult: String? = null,
 )
@@ -112,6 +117,7 @@ class SettingsRepository(context: Context, userId: String) {
         intervalHours = prefs.getInt(KEY_SYNC_HOURS, 24),
         autoFileUri = prefs.getString(KEY_AUTO_URI, null),
         autoFileName = prefs.getString(KEY_AUTO_NAME, null),
+        backupOnChange = prefs.getBoolean(KEY_SYNC_ON_CHANGE, false),
         lastSyncAt = prefs.getLong(KEY_LAST_SYNC, 0),
         lastResult = prefs.getString(KEY_LAST_RESULT, null),
     )
@@ -201,6 +207,7 @@ class SettingsRepository(context: Context, userId: String) {
             .putInt(KEY_SYNC_HOURS, s.intervalHours)
             .putString(KEY_AUTO_URI, s.autoFileUri)
             .putString(KEY_AUTO_NAME, s.autoFileName)
+            .putBoolean(KEY_SYNC_ON_CHANGE, s.backupOnChange)
             .putLong(KEY_LAST_SYNC, s.lastSyncAt)
             .putString(KEY_LAST_RESULT, s.lastResult)
             .apply()
@@ -239,6 +246,7 @@ class SettingsRepository(context: Context, userId: String) {
         private const val KEY_SYNC_DAYS = "sync_days"
         private const val KEY_AUTO_URI = "sync_auto_uri"
         private const val KEY_AUTO_NAME = "sync_auto_name"
+        private const val KEY_SYNC_ON_CHANGE = "sync_on_change"
         private const val KEY_LAST_SYNC = "last_sync"
         private const val KEY_LAST_RESULT = "last_sync_result"
     }

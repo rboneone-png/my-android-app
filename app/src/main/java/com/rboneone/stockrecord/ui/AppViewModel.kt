@@ -13,6 +13,7 @@ import com.rboneone.stockrecord.data.CashFlow
 import com.rboneone.stockrecord.data.Dividend
 import com.rboneone.stockrecord.data.Loan
 import com.rboneone.stockrecord.data.SplitApplier
+import com.rboneone.stockrecord.data.backupOnChangeActive
 import com.rboneone.stockrecord.data.SplitRepair
 import com.rboneone.stockrecord.data.StockSplit
 import com.rboneone.stockrecord.data.LookupResult
@@ -63,6 +64,9 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -221,6 +225,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     init {
         viewModelScope.launch { applyDueSplits() }
+        watchDataChanges()
         // 舊紀錄（升級前、匯入的）補上當時的美元匯率
         viewModelScope.launch { runCatching { backfillFxRates() } }
         val s = sync.value
@@ -848,11 +853,44 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     /** 取消自動備份並忘記檔案（檔案本身不會被刪除） */
     fun clearAutoFile() {
         app.syncManager.cancel(userId)
-        settingsRepository.updateSync { it.copy(auto = false, autoFileUri = null, autoFileName = null, lastResult = null) }
+        settingsRepository.updateSync { it.copy(auto = false, backupOnChange = false, autoFileUri = null, autoFileName = null, lastResult = null) }
+    }
+
+    /** 「新增或修改資料後自動備份」開關；只有自動備份開啟（且已選好備份檔）時才能開 */
+    fun setBackupOnChange(on: Boolean) {
+        val s = sync.value
+        if (on && !(s.auto && s.autoFileUri != null)) return
+        settingsRepository.updateSync { it.copy(backupOnChange = on) }
+    }
+
+    /**
+     * 資料有新增或修改（買賣、股利、質押、現金、貸款、通知、分類、分割、觀察清單）後，等 5 秒（連續修改只備份一次）再自動備份。
+     * 只在「自動備份」與「新增或修改後自動備份」都開著時才備份；啟動時的第一次讀取不算。
+     */
+    @OptIn(kotlinx.coroutines.FlowPreview::class)
+    private fun watchDataChanges() {
+        viewModelScope.launch {
+            combine(
+                listOf<Flow<Any>>(
+                    tradeDao.observeAll(), dividendDao.observeAll(), categoryDao.observeAll(), alertDao.observeAll(),
+                    pledgeDao.observeAll(), watchDao.observeAll(), highWatchDao.observeAll(), cashFlowDao.observeAll(),
+                    loanDao.observeAll(), splitDao.observeAll(),
+                )
+            ) { it.toList() }
+                .distinctUntilChanged()
+                .drop(1)
+                .debounce(5_000)
+                .collect {
+                    val s = sync.value
+                    if (s.backupOnChangeActive()) {
+                        runCatching { app.syncManager.backupAuto(userId) }
+                    }
+                }
+        }
     }
 
     fun setAutoSync(auto: Boolean) {
-        settingsRepository.updateSync { it.copy(auto = auto) }
+        settingsRepository.updateSync { it.copy(auto = auto, backupOnChange = if (auto) it.backupOnChange else false) }
         if (auto && sync.value.autoFileUri != null) app.syncManager.schedule(userId, sync.value.totalHours(), replace = true)
         else app.syncManager.cancel(userId)
     }
