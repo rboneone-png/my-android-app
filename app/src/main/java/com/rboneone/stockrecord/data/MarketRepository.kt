@@ -1,6 +1,7 @@
 package com.rboneone.stockrecord.data
 
 import com.rboneone.stockrecord.domain.Bar
+import com.rboneone.stockrecord.domain.QuoteGuard
 import com.rboneone.stockrecord.domain.PeriodHigh
 import com.rboneone.stockrecord.network.ChartQuote
 import com.rboneone.stockrecord.network.GoogleFinance
@@ -120,7 +121,10 @@ class MarketRepository(private val dao: MarketDao) {
                 market = market,
                 symbol = symbol,
                 price = chart.price,
-                previousClose = chart.previousClose ?: chart.price,
+                // 分割當天前收有時還是分割前的價格：換成和現價同一個基準
+                previousClose = QuoteGuard.previousClose(
+                    market, MarketIndices.find(market, symbol) != null, chart.price, chart.previousClose ?: chart.price,
+                ),
                 marketTime = chart.marketTime,
                 updatedAt = System.currentTimeMillis(),
             )
