@@ -51,6 +51,23 @@ object SplitMath {
         return if (forward) p.copy(shares = shares(p.shares * split.ratio)) else p.copy(shares = shares(p.shares / split.ratio))
     }
 
+    /**
+     * 已執行的分割，判斷一筆質押的股數是不是沒跟著調整（+1＝還是分割前、要 × 倍數；−1＝被多調整了、要 ÷ 倍數；0＝正常或無法判斷）。
+     * - [heldAtDate]：質押當天持有的股數（分割後的基準）；質押股數不可能比持股多。
+     * - [closeAtDate]：質押當天的收盤價（分割後的基準）；質押當下維持率至少 166%，
+     *   質押股數 × 收盤價 ÷ 質借金額 遠低於這個值，代表股數還是分割前的。
+     */
+    fun pledgeAdjustment(p: Pledge, split: StockSplit, heldAtDate: Double, closeAtDate: Double?): Int {
+        if (split.market != com.rboneone.stockrecord.data.Market.TW || p.symbol != split.symbol || p.date >= split.resumeDate) return 0
+        val n = split.ratio.toDouble()
+        if (p.shares > heldAtDate + 1e-6 && p.shares / n <= heldAtDate + 1e-6) return -1
+        if (closeAtDate != null && closeAtDate > 0 && p.amount > 0 && p.shares * n <= heldAtDate + 1e-6) {
+            val maintenance = p.shares * closeAtDate / p.amount
+            if (maintenance < 1.66 / Math.sqrt(n)) return 1
+        }
+        return 0
+    }
+
     /** 通知：股價、漲跌金額的門檻跟著每股價格調整；百分比的門檻不用動 */
     fun adjustAlert(a: PriceAlert, split: StockSplit, forward: Boolean): PriceAlert {
         if (a.market != split.market || a.symbol != split.symbol) return a

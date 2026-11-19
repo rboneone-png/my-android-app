@@ -10,7 +10,7 @@ import com.rboneone.stockrecord.network.YahooApi
  * 把恢復交易日之前的每筆買賣價格，和「同一天的收盤價」比較：
  * - 價格接近當天收盤價 → 已經調整過，不動
  * - 價格是當天收盤價的將近一個倍數 → 還是分割前的原價，調整這一筆
- * 所有買賣都還是原價的話，整筆分割（買賣、股利、質押股數、通知價格）重新執行一次。
+ * 所有買賣都還是原價的話，整筆分割（買賣、股利、通知價格）重新執行一次；質押股數另外逐筆判斷（見 repairPledges）。
  * 抓不到歷史價（沒網路）或找不到那天的收盤價時，什麼都不改，下次再檢查。重複執行不會重複調整。
  */
 object SplitRepair {
@@ -37,6 +37,38 @@ object SplitRepair {
                 raw.forEach { db.tradeDao().upsert(SplitMath.adjustTrade(it, sp, forward = true)) }
             }
             fixed += raw.size
+        }
+        // 買賣修好之後再判斷質押（要用調整後的持股數）
+        for (sp in splits) fixed += repairPledges(db, sp, today)
+        return fixed
+    }
+
+    /**
+     * 質押股數沒跟著分割調整（或被多調整）時逐筆修正。判斷方式見 [SplitMath.pledgeAdjustment]。
+     * 回傳修正了幾筆。
+     */
+    private suspend fun repairPledges(db: AppDatabase, sp: StockSplit, today: Long): Int {
+        if (sp.market != Market.TW) return 0
+        val pledges = db.pledgeDao().getAll().filter { it.symbol == sp.symbol && it.date < sp.resumeDate }
+        if (pledges.isEmpty()) return 0
+        val trades = db.tradeDao().getAll().filter { it.market == sp.market && it.symbol == sp.symbol }
+        val dividends = db.dividendDao().getAll().filter { it.market == sp.market && it.symbol == sp.symbol }
+        fun heldAt(date: Long): Double =
+            trades.filter { it.date <= date }.sumOf { if (it.type == TradeType.BUY) it.shares else -it.shares } +
+                dividends.filter { it.date <= date }.sumOf { it.stockShares }
+        // 收盤價只用來判斷「沒調整到」；抓不到（沒網路）時只做「質押股數超過持股」的判斷
+        val yahoo = db.marketDao().getInfo(sp.market, sp.symbol)?.yahooSymbol
+        val bars = yahoo?.let {
+            runCatching { YahooApi.history(it, pledges.minOf { p -> p.date } - 10, minOf(today, sp.resumeDate + 7)) }.getOrNull()
+        }?.takeIf { it.isNotEmpty() }
+        val aligned = bars?.let { b -> SplitMath.unadjustedBefore(b, sp)?.let { SplitMath.alignBars(b, sp.ratio, it) } ?: b }
+        var fixed = 0
+        for (p in pledges) {
+            val close = aligned?.lastOrNull { it.date <= p.date }?.close
+            when (SplitMath.pledgeAdjustment(p, sp, heldAt(p.date), close)) {
+                1 -> { db.pledgeDao().upsert(SplitMath.adjustPledge(p, sp, forward = true)); fixed++ }
+                -1 -> { db.pledgeDao().upsert(SplitMath.adjustPledge(p, sp, forward = false)); fixed++ }
+            }
         }
         return fixed
     }

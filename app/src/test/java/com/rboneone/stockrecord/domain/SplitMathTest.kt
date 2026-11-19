@@ -269,4 +269,20 @@ class SplitMathTest {
         val after = trade(120, 1000.0, 117.0)                     // 恢復交易日之後
         assertEquals(emptyList<Trade>(), SplitMath.unadjustedTrades(listOf(noBar, other, after), alignedBars, split))
     }
+
+    @Test fun pledgeAdjustment_detectsUnadjustedAndOverAdjusted() {
+        val sp = StockSplit(1, Market.TW, "00662", "富邦NASDAQ", 100, 110, 5, true)
+        fun pledge(shares: Double, amount: Double, date: Long = 90) =
+            com.rboneone.stockrecord.data.Pledge(1, "00662", "富邦NASDAQ", shares, amount, 2.0, date)
+        // 持股 20,000（調整後）；質押還是分割前的 4,000 股、借 150,000、當天收盤價 24（對齊後）→ 維持率 0.64 < 0.74 → 要 × 5
+        assertEquals(1, SplitMath.pledgeAdjustment(pledge(4_000.0, 150_000.0), sp, 20_000.0, 24.0))
+        // 已調整：20,000 股 × 24 ÷ 150,000 = 3.2，正常
+        assertEquals(0, SplitMath.pledgeAdjustment(pledge(20_000.0, 150_000.0), sp, 20_000.0, 24.0))
+        // 被多調整：100,000 股 > 持股 20,000，÷ 5 後剛好不超過 → 要 ÷ 5
+        assertEquals(-1, SplitMath.pledgeAdjustment(pledge(100_000.0, 150_000.0), sp, 20_000.0, 24.0))
+        // 沒有收盤價（沒網路）：不判斷「沒調整到」
+        assertEquals(0, SplitMath.pledgeAdjustment(pledge(4_000.0, 150_000.0), sp, 20_000.0, null))
+        // 恢復交易日之後的質押不受影響
+        assertEquals(0, SplitMath.pledgeAdjustment(pledge(4_000.0, 150_000.0, date = 120), sp, 20_000.0, 24.0))
+    }
 }

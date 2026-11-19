@@ -27,10 +27,11 @@ object SplitApplier {
             val current = db.stockSplitDao().get(split.id) ?: return@withTransaction
             db.stockSplitDao().upsert(current.copy(applied = false))
         }
-        adjust(db, split.copy(applied = false), forward = true)
+        adjust(db, split.copy(applied = false), forward = true, includePledges = false)
     }
 
-    private suspend fun adjust(db: AppDatabase, split: StockSplit, forward: Boolean) {
+    /** [includePledges] = false：不動質押股數（重新執行時質押另外逐筆判斷，避免重複調整） */
+    private suspend fun adjust(db: AppDatabase, split: StockSplit, forward: Boolean, includePledges: Boolean = true) {
         db.withTransaction {
             // 在交易裡再確認一次狀態：同時有兩處（畫面與背景）檢查到期時，不會調整兩次
             val current = db.stockSplitDao().get(split.id) ?: return@withTransaction
@@ -43,7 +44,7 @@ object SplitApplier {
                 val n = SplitMath.adjustDividend(d, split, forward)
                 if (n != d) db.dividendDao().upsert(n)
             }
-            db.pledgeDao().getAll().forEach { p ->
+            if (includePledges) db.pledgeDao().getAll().forEach { p ->
                 val n = SplitMath.adjustPledge(p, split, forward)
                 if (n != p) db.pledgeDao().upsert(n)
             }
