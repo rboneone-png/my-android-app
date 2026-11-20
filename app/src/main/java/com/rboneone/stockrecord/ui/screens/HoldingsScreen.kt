@@ -101,6 +101,11 @@ fun HoldingsScreen(
     val refreshSeconds by vm.refreshSeconds.collectAsStateWithLifecycle()
     val uncategorized by vm.uncategorizedCount.collectAsStateWithLifecycle()
     val holdingOrder by vm.holdingOrder.collectAsStateWithLifecycle()
+    val allPledges by vm.pledges.collectAsStateWithLifecycle()
+    // 台股各股票目前質押中的股數（已歸還的不算）
+    val pledgedShares = remember(allPledges) {
+        allPledges.filter { it.isActive }.groupBy { it.symbol }.mapValues { (_, l) -> l.sumOf { it.shares } }
+    }
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     var market by rememberSaveable { mutableStateOf(Market.TW) }
@@ -180,6 +185,7 @@ fun HoldingsScreen(
                     savedOrder = holdingOrder[market].orEmpty(),
                     onOrderChanged = { vm.setHoldingOrder(market, it) },
                     categories = categories,
+                    pledgedShares = if (market == Market.TW) pledgedShares else emptyMap(),
                 )
             }
         }
@@ -196,6 +202,7 @@ private fun MarketList(
     savedOrder: List<String>,
     onOrderChanged: (List<String>) -> Unit,
     categories: Map<Pair<Market, String>, AssetCategory>,
+    pledgedShares: Map<String, Double> = emptyMap(),
 ) {
     val market = summary.market
     val positions = view.positions.filter { it.holding.market == market }
@@ -270,6 +277,7 @@ private fun MarketList(
                                 PositionRow(
                                     p,
                                     hidden,
+                                    pledgedShares[p.holding.symbol] ?: 0.0,
                                     Modifier.longPressDraggableHandle(
                                         onDragStarted = { haptic.performHapticFeedback(HapticFeedbackType.LongPress) },
                                         // 讀取狀態中的最新順序，避免拿到拖曳前的舊清單
@@ -471,7 +479,7 @@ private fun TableHeader() {
 }
 
 @Composable
-private fun PositionRow(p: Position, hidden: Boolean, dragModifier: Modifier = Modifier) {
+private fun PositionRow(p: Position, hidden: Boolean, pledgedShares: Double = 0.0, dragModifier: Modifier = Modifier) {
     val h = p.holding
     var expanded by rememberSaveable(h.market, h.symbol) { mutableStateOf(false) }
     Column(
@@ -543,6 +551,8 @@ private fun PositionRow(p: Position, hidden: Boolean, dragModifier: Modifier = M
                 fun money(v: Double) = if (hidden) HIDDEN else formatAmount(h.market, v)
                 fun signed(v: Double) = if (hidden) HIDDEN else formatSignedAmount(h.market, v)
                 LabelValue("持有股數", formatShares(h.shares))
+                // 質押中的股數（沒有質押就不顯示）
+                if (pledgedShares > 0) LabelValue("已質押股數", formatShares(pledgedShares))
                 LabelValue("市值", p.marketValue?.let { money(it) } ?: "--")
                 LabelValue("總成本", money(h.totalCost))
                 p.unrealizedPnl?.let { LabelValue("未實現損益", signed(it), pnl = it.takeIf { !hidden }) }
