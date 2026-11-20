@@ -44,6 +44,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.vectorResource
 import com.rboneone.stockrecord.R
@@ -478,6 +479,11 @@ private fun TableHeader() {
     HorizontalDivider()
 }
 
+/** 「已質押」的標示色（紫色，和漲跌的紅綠區分；深色模式用較淺的紫） */
+@Composable
+private fun pledgedColor(): Color =
+    if (MaterialTheme.colorScheme.background.luminance() < 0.5f) Color(0xFFCE93D8) else Color(0xFF7B1FA2)
+
 @Composable
 private fun PositionRow(p: Position, hidden: Boolean, pledgedShares: Double = 0.0, dragModifier: Modifier = Modifier) {
     val h = p.holding
@@ -491,7 +497,11 @@ private fun PositionRow(p: Position, hidden: Boolean, pledgedShares: Double = 0.
     ) {
         Row(verticalAlignment = Alignment.Top) {
             Column(Modifier.weight(W_STOCK)) {
-                Text(p.displayName, style = MaterialTheme.typography.titleMedium, maxLines = 2)
+                // 有質押的股票名稱用「質押色」，一眼看出哪些股票有質押
+                Text(
+                    p.displayName, style = MaterialTheme.typography.titleMedium, maxLines = 2,
+                    color = if (pledgedShares > 0) pledgedColor() else Color.Unspecified,
+                )
                 Text(h.symbol, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             Column(Modifier.weight(W_PRICE), horizontalAlignment = Alignment.End) {
@@ -552,7 +562,7 @@ private fun PositionRow(p: Position, hidden: Boolean, pledgedShares: Double = 0.
                 fun signed(v: Double) = if (hidden) HIDDEN else formatSignedAmount(h.market, v)
                 LabelValue("持有股數", formatShares(h.shares))
                 // 質押中的股數（沒有質押就不顯示）
-                if (pledgedShares > 0) LabelValue("已質押股數", formatShares(pledgedShares))
+                if (pledgedShares > 0) LabelValue("已質押股數", formatShares(pledgedShares), valueColor = pledgedColor(), labelColor = pledgedColor())
                 LabelValue("市值", p.marketValue?.let { money(it) } ?: "--")
                 LabelValue("總成本", money(h.totalCost))
                 p.unrealizedPnl?.let { LabelValue("未實現損益", signed(it), pnl = it.takeIf { !hidden }) }
@@ -605,9 +615,9 @@ private fun ClosedRow(p: Position, hidden: Boolean) {
 }
 
 @Composable
-fun LabelValue(label: String, value: String, pnl: Double? = null, valueColor: Color? = null) {
+fun LabelValue(label: String, value: String, pnl: Double? = null, valueColor: Color? = null, labelColor: Color = Color.Unspecified) {
     Row(Modifier.fillMaxWidth().padding(top = 4.dp)) {
-        Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+        Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, color = labelColor)
         Text(
             value,
             style = MaterialTheme.typography.bodyMedium,
