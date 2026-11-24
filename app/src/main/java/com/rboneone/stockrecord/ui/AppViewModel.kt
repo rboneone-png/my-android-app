@@ -12,7 +12,6 @@ import com.rboneone.stockrecord.data.AssetCategory
 import com.rboneone.stockrecord.data.CashFlow
 import com.rboneone.stockrecord.data.Dividend
 import com.rboneone.stockrecord.data.Loan
-import com.rboneone.stockrecord.data.MarketIndices
 import com.rboneone.stockrecord.data.SplitApplier
 import com.rboneone.stockrecord.data.backupOnChangeActive
 import com.rboneone.stockrecord.data.SplitRepair
@@ -227,10 +226,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     init {
         viewModelScope.launch { applyDueSplits() }
         watchDataChanges()
-        // 「股票漲跌」不支援指數：舊版加進去的指數項目移除（指數請放在「指數」分頁）
-        viewModelScope.launch {
-            highWatchDao.getAll().filter { MarketIndices.isIndex(it.symbol) }.forEach { highWatchDao.delete(it) }
-        }
         // 舊紀錄（升級前、匯入的）補上當時的美元匯率
         viewModelScope.launch { runCatching { backfillFxRates() } }
         val s = sync.value
@@ -587,7 +582,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     /** 回傳 false 表示已經在清單中 */
     suspend fun addHighWatch(market: Market, symbol: String, name: String): Boolean {
-        if (MarketIndices.isIndex(symbol) || highWatchDao.count(market, symbol) > 0) return false
+        if (highWatchDao.count(market, symbol) > 0) return false
         val id = highWatchDao.insert(
             HighWatchItem(
                 market = market, symbol = symbol, name = name,

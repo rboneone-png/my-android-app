@@ -49,6 +49,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.rboneone.stockrecord.data.HighWatchItem
 import com.rboneone.stockrecord.data.Market
+import com.rboneone.stockrecord.data.MarketIndex
+import com.rboneone.stockrecord.data.MarketIndices
 import com.rboneone.stockrecord.data.Quote
 import com.rboneone.stockrecord.domain.HighWatch
 import com.rboneone.stockrecord.ui.AppViewModel
@@ -286,6 +288,8 @@ private fun AddHighDialog(vm: AppViewModel, onDismiss: () -> Unit) {
     var name by remember { mutableStateOf("") }
     var nameManual by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    var indexMode by remember { mutableStateOf(false) }
+    var index by remember { mutableStateOf<MarketIndex?>(null) }
     val nameHint = rememberStockNameLookup(vm, market, symbol, enabled = !nameManual) { name = it }
 
     AlertDialog(
@@ -296,29 +300,38 @@ private fun AddHighDialog(vm: AppViewModel, onDismiss: () -> Unit) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Market.entries.forEach { m ->
                         FilterChip(
-                            selected = market == m,
-                            onClick = { market = m; nameManual = false; error = null },
+                            selected = !indexMode && market == m,
+                            onClick = { market = m; nameManual = false; indexMode = false; error = null },
                             label = { Text(m.label) },
                         )
                     }
+                    FilterChip(
+                        selected = indexMode,
+                        onClick = { indexMode = true; error = null },
+                        label = { Text("指數") },
+                    )
                 }
-                OutlinedTextField(
-                    value = symbol,
-                    onValueChange = { symbol = it; nameManual = false; error = null },
-                    label = { Text("股票代號") },
-                    placeholder = { Text(if (market == Market.TW) "例如 0050" else "例如 QQQ") },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters),
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it; nameManual = true },
-                    label = { Text("股票名稱") },
-                    supportingText = nameHint?.let { { Text(it) } },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
+                if (indexMode) {
+                    IndexPicker(index, { index = it; error = null }, MarketIndices.ALL.filter { it.hasHistory })
+                } else {
+                    OutlinedTextField(
+                        value = symbol,
+                        onValueChange = { symbol = it; nameManual = false; error = null },
+                        label = { Text("股票代號") },
+                        placeholder = { Text(if (market == Market.TW) "例如 0050" else "例如 QQQ") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    OutlinedTextField(
+                        value = name,
+                        onValueChange = { name = it; nameManual = true },
+                        label = { Text("股票名稱") },
+                        supportingText = nameHint?.let { { Text(it) } },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
                 Text(
                     "最高價自動抓取近 2 年的最高股價",
                     style = MaterialTheme.typography.bodySmall,
@@ -329,6 +342,14 @@ private fun AddHighDialog(vm: AppViewModel, onDismiss: () -> Unit) {
         },
         confirmButton = {
             TextButton(onClick = {
+                if (indexMode) {
+                    val idx = index ?: run { error = "請選擇指數"; return@TextButton }
+                    scope.launch {
+                        if (vm.addHighWatch(idx.market, idx.symbol, idx.name)) onDismiss()
+                        else error = "這檔股票已經在清單中"
+                    }
+                    return@TextButton
+                }
                 val sym = symbol.trim().uppercase()
                 if (sym.isEmpty()) {
                     error = "請輸入股票代號"
