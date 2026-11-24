@@ -18,22 +18,30 @@ object HighWatch {
     fun splitAdjustedHigh(bars: List<HighBar>): PeriodHigh? {
         val sorted = bars.sortedBy { it.date }
         if (sorted.isEmpty()) return null
-        // factor[i]：第 i 筆之前要乘上的調整倍數（從最新往回累乘）
-        val factor = DoubleArray(sorted.size) { 1.0 }
-        var acc = 1.0
-        for (i in sorted.size - 1 downTo 1) {
-            factor[i] = acc
-            val a = sorted[i - 1]; val b = sorted[i]
-            val n = jumpFactor(a, b)
-            if (n != null) acc *= n
-        }
-        factor[0] = acc
+        val factor = splitFactors(sorted)
         var best: PeriodHigh? = null
         sorted.forEachIndexed { i, bar ->
             val h = bar.high * factor[i]
             if (best == null || h > best!!.price) best = PeriodHigh(h, bar.date)
         }
         return best
+    }
+
+    /**
+     * 依日期由舊到新排序的日線，回傳每一筆要乘上的調整倍數（分割後的基準為 1；沒調整到的舊價格 ×（1/倍數）；
+     * 反向分割則 × 倍數）。判斷方式見 [splitAdjustedHigh]。
+     */
+    fun splitFactors(sorted: List<HighBar>): DoubleArray {
+        val factor = DoubleArray(sorted.size) { 1.0 }
+        if (sorted.isEmpty()) return factor
+        var acc = 1.0
+        for (i in sorted.size - 1 downTo 1) {
+            factor[i] = acc
+            val n = jumpFactor(sorted[i - 1], sorted[i])
+            if (n != null) acc *= n
+        }
+        factor[0] = acc
+        return factor
     }
 
     /** 前一天 a → 當天 b 之間若是沒調整到的分割，回傳「a 要乘上多少」（分割 1/N、反向分割 N），否則 null */

@@ -1,6 +1,8 @@
 package com.rboneone.stockrecord.data
 
 import com.rboneone.stockrecord.domain.Bar
+import com.rboneone.stockrecord.domain.Candle
+import com.rboneone.stockrecord.domain.Indicators
 import com.rboneone.stockrecord.domain.QuoteGuard
 import com.rboneone.stockrecord.domain.PeriodHigh
 import com.rboneone.stockrecord.network.ChartQuote
@@ -142,6 +144,25 @@ class MarketRepository(private val dao: MarketDao) {
         val bars = YahooApi.history(info.yahooSymbol, from, to) ?: return null
         if (cacheable) synchronized(historyCache) { historyCache[key] = bars }
         return bars
+    }
+
+    private val candleCache = mutableMapOf<String, Pair<Long, List<Candle>>>()
+
+    /** 近 2 年的日 K（已換成分割後的基準）；同一檔 10 分鐘內不重複下載。查不到或連不上回傳 null */
+    suspend fun candles(market: Market, symbol: String): List<Candle>? {
+        val key = "$market/$symbol"
+        val now = System.currentTimeMillis()
+        synchronized(candleCache) { candleCache[key] }?.takeIf { now - it.first < 600_000 }?.let { return it.second }
+        val info = (lookup(market, symbol) as? LookupResult.Found)?.info ?: return null
+        val list = try {
+            YahooApi.candles(info.yahooSymbol, "2y")
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            null
+        }?.takeIf { it.isNotEmpty() }?.let { Indicators.splitAdjusted(it) } ?: return null
+        synchronized(candleCache) { candleCache[key] = now to list }
+        return list
     }
 
     /** 近 years 年的最高價；查不到或連不上回傳 null */

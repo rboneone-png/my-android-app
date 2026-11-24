@@ -134,6 +134,8 @@ private fun WatchStocksTab(vm: AppViewModel, refreshSeconds: Int, indices: Boole
     val haptic = LocalHapticFeedback.current
     var adding by remember { mutableStateOf(false) }
     var removing by remember { mutableStateOf<WatchItem?>(null) }
+    // 展開走勢圖的項目
+    var chartOpen by rememberSaveable { mutableStateOf(setOf<Long>()) }
 
     // 拖曳中先改畫面上的順序，放開後才寫回資料庫
     var order by remember(watchlist) { mutableStateOf(watchlist) }
@@ -168,6 +170,8 @@ private fun WatchStocksTab(vm: AppViewModel, refreshSeconds: Int, indices: Boole
                                 WatchRow(
                                     item,
                                     quotes[item.market to item.symbol],
+                                    item.id in chartOpen,
+                                    { chartOpen = if (item.id in chartOpen) chartOpen - item.id else chartOpen + item.id },
                                     Modifier
                                         .longPressDraggableHandle(
                                             onDragStarted = { haptic.performHapticFeedback(HapticFeedbackType.LongPress) },
@@ -175,6 +179,7 @@ private fun WatchStocksTab(vm: AppViewModel, refreshSeconds: Int, indices: Boole
                                         )
                                         .clickable { removing = item },
                                 )
+                                if (item.id in chartOpen) StockChartPanel(vm, item.market, item.symbol)
                                 HorizontalDivider()
                             }
                         }
@@ -182,7 +187,7 @@ private fun WatchStocksTab(vm: AppViewModel, refreshSeconds: Int, indices: Boole
                 }
                 item(key = "hint") {
                     Text(
-                        "長按可拖曳調整順序，點一下可刪除。每 $refreshSeconds 秒自動更新${if (indices) "點數" else "報價"}。",
+                        "長按可拖曳調整順序，點一下可刪除；按右側「走勢」展開／收合 K 線走勢圖。每 $refreshSeconds 秒自動更新${if (indices) "點數" else "報價"}。",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center,
@@ -235,7 +240,7 @@ private fun WatchHeader(nameLabel: String, priceLabel: String) {
 }
 
 @Composable
-private fun WatchRow(item: WatchItem, quote: Quote?, modifier: Modifier) {
+private fun WatchRow(item: WatchItem, quote: Quote?, chartOpen: Boolean, onToggleChart: () -> Unit, modifier: Modifier) {
     Row(
         modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -250,6 +255,7 @@ private fun WatchRow(item: WatchItem, quote: Quote?, modifier: Modifier) {
         }
         if (quote == null) {
             Text("--", Modifier.weight(3f), textAlign = TextAlign.End)
+            ChartToggle(chartOpen, onToggleChart)
             return@Row
         }
         val change = quote.price - quote.previousClose
@@ -282,6 +288,7 @@ private fun WatchRow(item: WatchItem, quote: Quote?, modifier: Modifier) {
             color = color,
             textAlign = TextAlign.End,
         )
+        ChartToggle(chartOpen, onToggleChart)
     }
 }
 

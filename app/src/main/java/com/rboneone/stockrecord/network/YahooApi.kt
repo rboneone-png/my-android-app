@@ -3,6 +3,7 @@ package com.rboneone.stockrecord.network
 import com.rboneone.stockrecord.data.Market
 import com.rboneone.stockrecord.data.Quote
 import com.rboneone.stockrecord.domain.Bar
+import com.rboneone.stockrecord.domain.Candle
 import com.rboneone.stockrecord.domain.HighBar
 import com.rboneone.stockrecord.domain.HighWatch
 import com.rboneone.stockrecord.domain.PeriodHigh
@@ -133,6 +134,33 @@ object YahooApi {
             marketTime = meta.optLong("regularMarketTime"),
             name = meta.str("longName") ?: meta.str("shortName"),
         )
+    }
+
+    /** 近 range（例如 "2y"）的日 K（開高低收量）；查不到回傳 null */
+    suspend fun candles(yahooSymbol: String, range: String): List<Candle>? = withContext(Dispatchers.IO) {
+        val url = CHART_URL + URLEncoder.encode(yahooSymbol, "UTF-8") + "?range=$range&interval=1d"
+        Http.get(url)?.let { parseCandles(it) }
+    }
+
+    fun parseCandles(json: String): List<Candle>? {
+        val result = JSONObject(json).optJSONObject("chart")
+            ?.optJSONArray("result")
+            ?.optJSONObject(0) ?: return null
+        val offset = result.optJSONObject("meta")?.optLong("gmtoffset") ?: 0L
+        val timestamps = result.optJSONArray("timestamp") ?: return emptyList()
+        val q = result.optJSONObject("indicators")?.optJSONArray("quote")?.optJSONObject(0) ?: return emptyList()
+        val o = q.optJSONArray("open"); val h = q.optJSONArray("high"); val l = q.optJSONArray("low")
+        val c = q.optJSONArray("close"); val v = q.optJSONArray("volume")
+        if (o == null || h == null || l == null || c == null) return emptyList()
+        val out = mutableListOf<Candle>()
+        for (i in 0 until minOf(timestamps.length(), o.length(), h.length(), l.length(), c.length())) {
+            if (o.isNull(i) || h.isNull(i) || l.isNull(i) || c.isNull(i)) continue
+            val vol = if (v != null && i < v.length() && !v.isNull(i)) v.getLong(i) else 0L
+            // 休市日補的資料（成交量 0）不算
+            if (v != null && i < v.length() && !v.isNull(i) && vol == 0L) continue
+            out += Candle(Math.floorDiv(timestamps.getLong(i) + offset, 86_400L), o.getDouble(i), h.getDouble(i), l.getDouble(i), c.getDouble(i), vol)
+        }
+        return out.associateBy { it.date }.values.sortedBy { it.date }
     }
 
     fun parseHistory(json: String, fx: Boolean = false): List<Bar>? {

@@ -752,6 +752,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     // ---- 交易與股利 ----
 
+    /** 走勢圖用的日 K；查不到回傳 null */
+    suspend fun candles(market: Market, symbol: String): List<com.rboneone.stockrecord.domain.Candle>? =
+        marketRepository.candles(market, symbol)
+
     suspend fun lookupStock(market: Market, symbol: String): LookupResult =
         marketRepository.lookup(market, symbol)
 
