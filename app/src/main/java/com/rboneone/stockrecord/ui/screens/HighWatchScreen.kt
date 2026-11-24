@@ -75,7 +75,6 @@ fun HighWatchTab(vm: AppViewModel, refreshSeconds: Int) {
     var removing by remember { mutableStateOf<HighWatchItem?>(null) }
     // 展開的股票（顯示技術點 P1～P5），預設全部收合
     var expanded by rememberSaveable { mutableStateOf(setOf<Long>()) }
-    var chartOpen by rememberSaveable { mutableStateOf(setOf<Long>()) }
 
     // 最高價一天抓一次
     LaunchedEffect(Unit) { vm.refreshHighs(force = false) }
@@ -114,8 +113,6 @@ fun HighWatchTab(vm: AppViewModel, refreshSeconds: Int) {
                                     item,
                                     quote,
                                     open,
-                                    item.id in chartOpen,
-                                    { chartOpen = if (item.id in chartOpen) chartOpen - item.id else chartOpen + item.id },
                                     Modifier
                                         .longPressDraggableHandle(
                                             onDragStarted = { haptic.performHapticFeedback(HapticFeedbackType.LongPress) },
@@ -131,7 +128,6 @@ fun HighWatchTab(vm: AppViewModel, refreshSeconds: Int) {
                                         onRemove = { removing = item },
                                     )
                                 }
-                                if (item.id in chartOpen) StockChartPanel(vm, item.market, item.symbol)
                                 HorizontalDivider()
                             }
                         }
@@ -142,7 +138,7 @@ fun HighWatchTab(vm: AppViewModel, refreshSeconds: Int) {
                         "漲跌幅 = 現價 ÷ 最高價 × 100%\n" +
                             "最高價為近 2 年的最高股價，每天更新一次；現價每 $refreshSeconds 秒更新。\n" +
                             "點一下股票展開技術點 P1～P5（從 2 年最高價下跌 10%～50% 的價位），再點收合。\n" +
-                            "長按可拖曳調整順序；要移除請展開後按「移除這檔」。\n按右側「走勢」展開／收合 K 線走勢圖。",
+                            "長按可拖曳調整順序；要移除請展開後按「移除這檔」。",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center,
@@ -194,7 +190,7 @@ private fun HighHeader() {
 }
 
 @Composable
-private fun HighRow(item: HighWatchItem, quote: Quote?, expanded: Boolean, chartOpen: Boolean, onToggleChart: () -> Unit, modifier: Modifier) {
+private fun HighRow(item: HighWatchItem, quote: Quote?, expanded: Boolean, modifier: Modifier) {
     val price = quote?.price
     val high = HighWatch.effectiveHigh(item.highPrice, price)
     val ratio = HighWatch.ratio(price, high)
@@ -236,7 +232,6 @@ private fun HighRow(item: HighWatchItem, quote: Quote?, expanded: Boolean, chart
             )
             if (newHigh) Text("創新高", style = sub, color = ProfitRed)
         }
-        ChartToggle(chartOpen, onToggleChart)
         Icon(
             if (expanded) Icons.Filled.KeyboardArrowDown else Icons.AutoMirrored.Filled.KeyboardArrowRight,
             contentDescription = null,
